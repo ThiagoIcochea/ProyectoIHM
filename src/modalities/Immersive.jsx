@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { Trees, Waves, Moon, Mountain, Orbit, Flower2, Play, Square, Camera, Glasses, Volume2, VolumeX, Smartphone, Hand, LocateFixed, Flame, Users, Copy, LogOut, Share2 } from 'lucide-react'
+import { Trees, Waves, Moon, Mountain, Orbit, Flower2, Play, Square, Camera, Glasses, Volume2, VolumeX, Smartphone, Hand, LocateFixed, Flame, Users, Copy, LogOut, Share2, Mic, MicOff, Keyboard, UserRound } from 'lucide-react'
 import { WORLDS, buildWorld, skyTexture, breathParticles, terrainAttr, envAttr, arSanctuary, arFogata } from './vrWorlds'
 import { registerXR } from './xr'
-import { useRoom, createRoom, joinRoom, leaveRoom, sendPose, sendReaction, sendBreath, onRemoteBreath, REACTIONS } from '../lib/rooms'
+import { useRoom, createRoom, joinRoom, leaveRoom, sendPose, sendReaction, sendBreath, onRemoteBreath, REACTIONS, sendAvatar, sendScene, startTalking, stopTalking, listAudioDevices, setVoiceOutput } from '../lib/rooms'
+import { avatarHTML } from './avatars'
+import { useStore } from '../lib/store'
+import AvatarEditor from '../components/AvatarEditor'
+import { askWayra, WAYRA_GREETING } from '../lib/companion'
+import { viscachaHTML } from './vrWorlds'
 import { Sheet } from '../components/ui'
 import { toast } from '../components/Toast'
 import { assetsHTML } from './textures'
@@ -41,12 +46,13 @@ function arCameraHTML(motion, arScene) {
     : arSanctuary('cam-sanctuary', 'position="0 0.9 -1.7" rotation="10 0 0"')
   return `
   <a-scene embedded vr-mode-ui="enabled: false" xr-mode-ui="enabled: false" renderer="alpha: true; antialias: true; colorManagement: true"
-    background="transparent: true" loading-screen="enabled: false" device-orientation-permission-ui="enabled: false" cursor="rayOrigin: mouse"
+    background="transparent: true" loading-screen="enabled: false" device-orientation-permission-ui="enabled: false" cursor="rayOrigin: mouse" raycaster="objects: .clickable"
     env-light="top: #9CC4E0; horizon: #E8E2D6; ground: #5E5244; exposure: 1.05">
     ${assetsHTML()}
     <a-entity light="type: hemisphere; color: #FFFFFF; groundColor: #6E604F; intensity: 0.65"></a-entity>
     <a-entity light="type: directional; intensity: 1.25; color: #FFF1DC" position="1.5 3 2"></a-entity>
     ${piece}
+    ${viscachaHTML('wayra', `class="clickable" position="0.78 ${arScene === 'fogata' ? 0.55 : 0.62} -1.5" rotation="0 153 0" scale="0.7 0.7 0.7"`)}
     <a-entity id="avatars" position="0 ${arScene === 'fogata' ? 0.75 : 0.9} -1.7"></a-entity>
     <a-text id="ar-phase" value="Mira la esfera y respira" align="center" color="#FFFFFF" width="2.4" position="0 1.78 -1.8"></a-text>
     <a-text id="ar-count" value="" align="center" color="#FFFFFF" width="4" position="0 1.56 -1.8"></a-text>
@@ -73,7 +79,7 @@ function sceneHTML(kind, motion) {
     <a-sky id="sky" src="${skyTexture(s.sky)}" hide-on-enter-ar></a-sky>
     <a-entity id="amb" light="type: ambient; intensity: ${s.ambient}"></a-entity>
     <a-entity id="sun" light="type: directional; intensity: ${s.sun}; color: ${s.sunColor}" position="3 8 4"></a-entity>
-    <a-entity id="ground" ${s.terrain ? `terrain="${terrainAttr(s)}"` : ''} visible="${!!s.terrain}" hide-on-enter-ar></a-entity>
+    <a-entity id="ground" ${s.terrain ? `terrain="${terrainAttr(s, kind)}"` : ''} visible="${!!s.terrain}" hide-on-enter-ar></a-entity>
     <a-entity id="avatars"></a-entity>
     ${arSanctuary('ar-sanctuary', 'position="0 0 -1.2" visible="false"')}
     <a-entity id="props">${buildWorld(kind)}</a-entity>
@@ -85,6 +91,7 @@ function sceneHTML(kind, motion) {
     <a-text id="phase" value="Mira la esfera y respira" align="center" color="${s.text}" width="5" position="0 2.65 -3.2"></a-text>
     <a-text id="desc" value="${s.label}: ${s.desc}" align="center" color="${s.text}" width="3.2" position="0 2.32 -3.2"></a-text>
     <a-text id="count" value="" align="center" color="#FFFFFF" width="7" position="0 1.6 -2.6"></a-text>
+    ${viscachaHTML('wayra', 'class="clickable" position="2.4 0 -2.2" rotation="0 132 0"')}
     ${button3d('b-start', 'Respirar', 0, 0.86, '#0966BF', 1.1)}
     ${worldButtons}
     <a-entity id="rig" position="0 0 0">
@@ -139,6 +146,8 @@ export default function Immersive() {
   bRef.current = b
   const startRef = useRef(null)
   const stopRef = useRef(null)
+  const chooseKindRef = useRef(null)
+  const talkRef = useRef(null)
 
   useEffect(() => {
     host.current?.querySelectorAll('#count, #ar-count').forEach((el) => el.setAttribute('value', b.phase ? String(b.left) : ''))
@@ -159,7 +168,8 @@ export default function Immersive() {
         sc?.addEventListener('exit-vr', () => root.querySelector('#ar-sanctuary')?.setAttribute('visible', false))
         const on = (id, fn) => root.querySelector(id)?.addEventListener('click', fn)
         on('#b-start', () => (bRef.current.started ? stopRef.current() : startRef.current()))
-        Object.keys(SCENES).forEach((k) => on(`#b-${k}`, () => setKind(k)))
+        Object.keys(SCENES).forEach((k) => on(`#b-${k}`, () => chooseKindRef.current(k)))
+        root.querySelector('#wayra')?.addEventListener('click', () => talkRef.current())
         setReady(true)
       })
       .catch(() => setErr('No se pudo cargar el motor 3D.'))
@@ -179,7 +189,7 @@ export default function Immersive() {
     const g = root.querySelector('#ground')
     if (g) {
       g.setAttribute('visible', !!sc.terrain)
-      if (sc.terrain) g.setAttribute('terrain', { size: 140, seg: 160, height: 6, flat: 9, scale: 0.035, low: '#4E8A3A', mid: '#7A9A4A', high: '#8E8A80', peak: '#F1F4F7', snow: 999, tex: 'grass', repeat: 48, ...sc.terrain }, true)
+      if (sc.terrain) g.setAttribute('terrain', { size: 140, seg: 160, height: 6, flat: 9, scale: 0.035, low: '#4E8A3A', mid: '#7A9A4A', high: '#8E8A80', peak: '#F1F4F7', snow: 999, tex: 'grass', repeat: 48, ...sc.terrain, world: kind }, true)
     }
     root.querySelector('a-scene')?.setAttribute('env-light', envAttr(sc))
     const scene = root.querySelector('a-scene')
@@ -238,43 +248,109 @@ export default function Immersive() {
     const ids = new Set(list.map((m) => m.id))
     box.querySelectorAll('.avatar').forEach((el) => { if (!ids.has(el.dataset.id)) el.remove() })
     const vrMode = mode === 'vr'
-    const R = vrMode ? 2.1 : 0.78
-    const SCALE = vrMode ? 1 : 0.3
-    const SEATS = [-55, 55, -110, 110, 180]
+    const R = vrMode ? 2.1 : 0.8
+    const SCALE = vrMode ? 1 : 0.24
+    const SEATS = [-55, 55, -105, 105, 180]
     list.forEach((m, i) => {
       let el = box.querySelector(`.avatar[data-id="${m.id}"]`)
+      const sig = JSON.stringify([m.avatar, m.name])
+      if (el && el.dataset.sig !== sig) { el.remove(); el = null }
       const a = (SEATS[i % SEATS.length] * Math.PI) / 180
       const x = Math.sin(a) * R
-      const z = vrMode ? -Math.cos(a) * R : Math.cos(a) * R
+      const z = -Math.cos(a) * R
       if (!el) {
         el = document.createElement('a-entity')
         el.className = 'avatar'
         el.dataset.id = m.id
+        el.dataset.sig = sig
         el.setAttribute('position', `${x.toFixed(2)} 0 ${z.toFixed(2)}`)
-        el.setAttribute('rotation', `0 ${((Math.atan2(x, vrMode ? z : z + 0.0001) * 180) / Math.PI + (vrMode ? 0 : 180)).toFixed(1)} 0`)
+        el.setAttribute('rotation', `0 ${((Math.atan2(x, z) * 180) / Math.PI).toFixed(1)} 0`)
         el.setAttribute('scale', `${SCALE} ${SCALE} ${SCALE}`)
-        el.innerHTML = `
-          <a-cylinder class="body" radius="0.24" radius-top="0.18" height="0.8" position="0 0.45 0" material="color: ${m.color}; roughness: 0.6"></a-cylinder>
-          <a-sphere radius="0.2" position="0 0.88 0" material="color: ${m.color}; roughness: 0.5"></a-sphere>
-          <a-entity class="head" position="0 1.12 0" avatar-head>
-            <a-sphere radius="0.19" material="color: #F4ECE4; roughness: 0.55"></a-sphere>
-            <a-box width="0.26" height="0.07" depth="0.06" position="0 0.03 -0.16" material="color: #0E293D; metalness: 0.3; roughness: 0.2"></a-box>
-          </a-entity>
-          <a-text class="name" value="${m.name.replace(/"/g, '')}" align="center" width="2.2" color="#FFFFFF" position="0 1.5 0" rotation="0 180 0"></a-text>
-          <a-text class="bubble" value="" align="center" width="2.4" color="${m.color}" position="0 1.72 0" rotation="0 180 0"></a-text>`
+        el.innerHTML = avatarHTML(m.avatar, m.name)
         box.appendChild(el)
       }
       const head = el.querySelector('.head')
       if (m.q && head?.components?.['avatar-head']) head.components['avatar-head'].setPose(m.q)
-      const bubble = el.querySelector('.bubble')
-      bubble?.setAttribute('value', m.react && Date.now() - (m.reactAt || 0) < 4500 ? REACTIONS[m.react] : '')
-      const body = el.querySelector('.body')
-      if (body) {
-        if (m.breath) body.setAttribute('animation', 'property: scale; from: 1 1 1; to: 1.12 1.05 1.12; dir: alternate; loop: true; dur: 4000; easing: easeInOutSine')
-        else body.removeAttribute('animation')
-      }
+      el.querySelector('.bubble')?.setAttribute('value', m.react && Date.now() - (m.reactAt || 0) < 4500 ? REACTIONS[m.react] : '')
+      el.querySelector('.talk')?.setAttribute('visible', !!m.talking)
+      el.querySelector('.mouth')?.setAttribute('animation', m.talking ? 'property: scale; from: 1 1 1; to: 1.3 2.2 1; dir: alternate; loop: true; dur: 180' : 'property: scale; to: 1 1 1; dur: 100')
+      if (m.breath) el.setAttribute('animation', `property: scale; from: ${SCALE} ${SCALE} ${SCALE}; to: ${SCALE * 1.04} ${SCALE * 1.03} ${SCALE * 1.04}; dir: alternate; loop: true; dur: 4000; easing: easeInOutSine`)
+      else el.removeAttribute('animation')
     })
   }, [room.members, ready, mode])
+
+  // El anfitrión elige el escenario para todos; los invitados lo siguen
+  const isMember = room.status === 'member'
+  const chooseKind = (k) => {
+    if (isMember) return toast('En esta sala, el anfitrión elige el escenario.')
+    setKind(k)
+  }
+  const chooseAr = (k) => {
+    if (isMember) return toast('En esta sala, el anfitrión elige el escenario.')
+    setArScene(k)
+  }
+  useEffect(() => {
+    if (room.status === 'host') sendScene(kind, arScene)
+  }, [room.status, kind, arScene, Object.keys(room.members).length]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (room.status !== 'member' || !room.scene) return
+    if (room.scene.kind && SCENES[room.scene.kind]) setKind(room.scene.kind)
+    if (room.scene.arScene) setArScene(room.scene.arScene)
+  }, [room.scene, room.status])
+
+  // Mi personaje: se envía a la sala cuando cambia
+  const myAvatar = useStore((st) => st.avatar)
+  useEffect(() => { if (inRoom) sendAvatar(myAvatar || {}) }, [myAvatar, inRoom])
+
+  // ---------- Voz en la sala ----------
+  const [audioDevs, setAudioDevs] = useState({ inputs: [], outputs: [] })
+  const [micId, setMicId] = useState('')
+  const loadDevices = () => listAudioDevices().then(setAudioDevs).catch(() => {})
+  const toggleTalk = () => (room.talking ? stopTalking() : startTalking(micId))
+
+  // ---------- Wayra, la viscacha (solo en la sala personal) ----------
+  const [wayraText, setWayraText] = useState(WAYRA_GREETING)
+  const [wayraBusy, setWayraBusy] = useState(false)
+  const [wayraTyping, setWayraTyping] = useState(false)
+  const [wayraDraft, setWayraDraft] = useState('')
+  useEffect(() => {
+    const root = host.current
+    if (!ready || !root) return
+    root.querySelector('#wayra')?.setAttribute('visible', !inRoom)
+  }, [ready, inRoom, mode])
+  const wayraSay = (text) => {
+    setWayraText(text)
+    const root = host.current
+    root?.querySelector('.wayra-bubble')?.setAttribute('value', text.length > 120 ? `${text.slice(0, 117)}…` : text)
+    const head = root?.querySelector('.wayra-head')
+    const mouth = root?.querySelector('.wayra-mouth')
+    v.speak(text, {
+      force: true,
+      profile: 'viscacha',
+      onStart: () => {
+        head?.setAttribute('animation__talk', 'property: rotation; from: -4 -8 0; to: 6 8 0; dir: alternate; loop: true; dur: 420; easing: easeInOutSine')
+        mouth?.setAttribute('animation', 'property: scale; from: 1 1 1; to: 1.4 2.4 1; dir: alternate; loop: true; dur: 170')
+      },
+      onEnd: () => {
+        head?.removeAttribute('animation__talk')
+        mouth?.setAttribute('animation', 'property: scale; to: 1 1 1; dur: 120')
+      }
+    })
+  }
+  const talkToWayra = async (typed) => {
+    if (wayraBusy) return
+    let text = typed
+    if (!text) {
+      setWayraText('Te escucho…')
+      text = await v.dictate()
+    }
+    if (!text) return
+    setWayraBusy(true)
+    setWayraText('Pensando…')
+    const reply = await askWayra(text)
+    setWayraBusy(false)
+    wayraSay(reply)
+  }
 
   const startBreath = () => {
     b.start()
@@ -285,6 +361,8 @@ export default function Immersive() {
     if (inRoom) sendBreath('stop')
   }
   startRef.current = startBreath
+  chooseKindRef.current = chooseKind
+  talkRef.current = () => talkToWayra()
   stopRef.current = stopBreath
   const shareCode = async () => {
     const text = `Únete a mi sala de calma en Escucha con el código ${room.code}`
@@ -326,12 +404,15 @@ export default function Immersive() {
   useVoiceCommands(
     'immersive',
     [
-      { re: /\b(fogata|fuego)\b/, label: 'fogata', run: () => (mode === 'camara' ? setArScene('fogata') : setKind('fogata')), say: 'Vamos a la fogata.' },
-      { re: /\b(santuario)\b/, label: 'santuario', run: () => (mode === 'camara' ? setArScene('santuario') : setKind('bosque')) },
-      { re: /\b(bosque|playa|noche|montana|espacio|jardin)\b/, label: 'bosque, playa, noche, montaña, espacio o jardín', run: (m) => { setMode('vr'); setKind(m[1]) }, say: (m) => `Vamos ${{ bosque: 'al bosque', playa: 'a la playa', noche: 'a la noche', montana: 'a la montaña', espacio: 'al espacio', jardin: 'al jardín zen' }[m[1]]}.` },
+      { re: /\b(fogata|fuego)\b/, label: 'fogata', run: () => (mode === 'camara' ? chooseAr('fogata') : chooseKind('fogata')), say: 'Vamos a la fogata.' },
+      { re: /\b(santuario)\b/, label: 'santuario', run: () => (mode === 'camara' ? chooseAr('santuario') : chooseKind('bosque')) },
+      { re: /\b(bosque|playa|noche|montana|espacio|jardin)\b/, label: 'bosque, playa, noche, montaña, espacio o jardín', run: (m) => { setMode('vr'); chooseKind(m[1]) }, say: (m) => `Vamos ${{ bosque: 'al bosque', playa: 'a la playa', noche: 'a la noche', montana: 'a la montaña', espacio: 'al espacio', jardin: 'al jardín zen' }[m[1]]}.` },
       { re: /\b(crea\w*|abrir|abre) (una )?sala\b/, label: 'crear sala', run: () => { setRoomOpen(true); createRoom().catch(() => {}) } },
       { re: /\b(salir de la sala|dejar la sala)\b/, label: 'salir de la sala', run: () => leaveRoom() },
       { re: /\b(te acompano|respira conmigo|gracias|estoy aqui)\b/, label: 'te acompaño', run: (m) => inRoom && sendReaction({ 'te acompano': 'acompano', 'respira conmigo': 'respira', gracias: 'gracias', 'estoy aqui': 'aqui' }[m[1]]) },
+      { re: /\b(wayra|viscacha)\b/, label: 'hablar con Wayra', run: () => !inRoom && talkToWayra() },
+      { re: /\b(activa\w*|abre|abrir) (el )?microfono\b|\bquiero hablar\b/, label: 'activar micrófono de la sala', run: () => inRoom && !room.talking && startTalking(micId) },
+      { re: /\b(silencia\w*|apaga\w*|cierra) (el )?microfono\b/, label: 'silenciar micrófono', run: () => stopTalking() },
       { re: /\b(respir\w*|empez\w*)\b/, label: 'respirar', run: () => startBreath() },
       { re: /\b(deten\w*|parar)\b/, label: 'detener', run: () => stopBreath() },
       { re: /\b(camara|realidad aumentada)\b/, label: 'realidad aumentada', run: () => setMode('camara') },
@@ -339,7 +420,7 @@ export default function Immersive() {
       { re: /\b(sonido|musica)\b/, label: 'sonido', run: () => setAudio((a) => !a) },
       { re: /\b(entrar|entra|visor|inmersivo)\b/, label: 'entrar al visor', run: enterVR }
     ],
-    [b.started, mode, inRoom]
+    [b.started, mode, inRoom, room.status, room.talking, micId, wayraBusy]
   )
 
   const S = SCENES[kind]
@@ -376,9 +457,31 @@ export default function Immersive() {
           </div>
         </div>
 
+        {!inRoom && ready && (
+          <div className="glass wayra-card" aria-live="polite">
+            <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
+              <span className="wayra-face" aria-hidden="true">W</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <b className="small">Wayra, la viscacha</b>
+                <p className="small" style={{ margin: 0 }}>{wayraText}</p>
+              </div>
+            </div>
+            {wayraTyping ? (
+              <form className="row" style={{ gap: 6, marginTop: 8 }} onSubmit={(e) => { e.preventDefault(); const t = wayraDraft.trim(); if (t) { setWayraDraft(''); talkToWayra(t) } }}>
+                <input className="input" style={{ minHeight: 40 }} value={wayraDraft} onChange={(e) => setWayraDraft(e.target.value)} placeholder="Escríbele a Wayra…" aria-label="Mensaje para Wayra" autoFocus />
+                <button className="btn btn-sm btn-primary" type="submit" disabled={wayraBusy}>Enviar</button>
+              </form>
+            ) : (
+              <div className="row" style={{ gap: 6, marginTop: 8 }}>
+                <button className="btn btn-sm btn-primary" disabled={wayraBusy} onClick={() => talkToWayra()}><Mic size={16} /> {wayraBusy ? 'Pensando…' : 'Hablar con Wayra'}</button>
+                <button className="btn btn-sm" onClick={() => setWayraTyping(true)} aria-label="Escribirle a Wayra"><Keyboard size={16} /></button>
+              </div>
+            )}
+          </div>
+        )}
         <div className="vr-bottom">
           {mode === 'camara' && [['santuario', 'Santuario', Flower2], ['fogata', 'Fogata', Flame]].map(([k, l, I]) => (
-            <button key={k} className="btn btn-sm" aria-pressed={arScene === k} style={arScene === k ? { borderColor: 'var(--primary)', color: 'var(--primary)' } : undefined} onClick={() => setArScene(k)}>
+            <button key={k} className="btn btn-sm" aria-pressed={arScene === k} style={arScene === k ? { borderColor: 'var(--primary)', color: 'var(--primary)' } : undefined} onClick={() => chooseAr(k)}>
               <I size={16} /> {l}
             </button>
           ))}
@@ -388,7 +491,7 @@ export default function Immersive() {
           {mode === 'vr' && Object.entries(SCENES).map(([k, s]) => {
             const I = s.icon
             return (
-              <button key={k} className="btn btn-sm" aria-pressed={kind === k} style={kind === k ? { borderColor: 'var(--primary)', color: 'var(--primary)' } : undefined} onClick={() => setKind(k)}>
+              <button key={k} className="btn btn-sm" aria-pressed={kind === k} style={kind === k ? { borderColor: 'var(--primary)', color: 'var(--primary)' } : undefined} onClick={() => chooseKind(k)}>
                 <I size={16} /> {s.label}
               </button>
             )
@@ -445,6 +548,29 @@ export default function Immersive() {
                 </div>
               </div>
               <div className="stack-sm">
+                <span className="label">Voz</span>
+                <div className="row-wrap">
+                  <button className={`btn ${room.talking ? 'btn-primary' : ''}`} onClick={toggleTalk}>{room.talking ? <Mic size={18} /> : <MicOff size={18} />} {room.talking ? 'Te escuchan · tocar para silenciar' : 'Hablar en la sala'}</button>
+                  <button className="btn btn-ghost btn-sm" onClick={loadDevices}>Elegir micrófono o auricular</button>
+                </div>
+                {(audioDevs.inputs.length > 0 || audioDevs.outputs.length > 0) && (
+                  <div className="grid-2">
+                    <select className="select" aria-label="Micrófono" value={micId} onChange={(e) => { setMicId(e.target.value); if (room.talking) { stopTalking(); startTalking(e.target.value) } }}>
+                      <option value="">Micrófono predeterminado</option>
+                      {audioDevs.inputs.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Micrófono'}</option>)}
+                    </select>
+                    {audioDevs.outputs.length > 0 && (
+                      <select className="select" aria-label="Salida de voz" defaultValue="" onChange={(e) => setVoiceOutput(e.target.value)}>
+                        <option value="">Salida predeterminada</option>
+                        {audioDevs.outputs.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Salida de audio'}</option>)}
+                      </select>
+                    )}
+                  </div>
+                )}
+                <span className="muted small">Para usar un auricular o parlante Bluetooth, primero emparéjalo en los ajustes de Bluetooth de tu teléfono o computadora; luego aparecerá en esta lista.</span>
+                {room.micError && <span className="small" style={{ color: 'var(--danger)' }}>{room.micError}</span>}
+              </div>
+              <div className="stack-sm">
                 <span className="label">Enviar un gesto</span>
                 <div className="row-wrap">{Object.entries(REACTIONS).map(([k, l]) => <button key={k} className="btn btn-sm btn-tint" onClick={() => sendReaction(k)}>{l}</button>)}</div>
               </div>
@@ -453,6 +579,11 @@ export default function Immersive() {
             </>
           )}
           {room.error && <div className="notice warn" role="alert">{room.error}</div>}
+          <details className="howto card" style={{ padding: '4px 16px 12px' }}>
+            <summary><UserRound size={18} /> Mi personaje</summary>
+            <AvatarEditor />
+          </details>
+          {room.status === 'host' && <p className="muted small">Eres el anfitrión: el escenario que elijas cambia para todos.</p>}
           <p className="muted small">Cada persona aparece como un avatar cuya cabeza sigue el movimiento de su teléfono o visor. No hay chat abierto: solo gestos predefinidos, para que sea un espacio seguro. La conexión es directa entre dispositivos (WebRTC); algunas redes móviles o de colegio pueden bloquearla.</p>
         </div>
       </Sheet>

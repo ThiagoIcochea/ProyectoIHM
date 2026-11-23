@@ -1,5 +1,5 @@
 import { mat } from './textures'
-import { terrainHeight } from './terrainMath'
+import { terrainHeight, blocked } from './terrainMath'
 
 // Mundos del Santuario de calma (A-Frame). Todo se genera con primitivas: no hay modelos ni texturas externas.
 // Cada mundo combina cielo en degradado, suelo, vegetación o paisaje, partículas animadas y luz propia.
@@ -64,7 +64,8 @@ const ring = (r, min, max) => {
   return [Math.cos(a) * d, Math.sin(a) * d]
 }
 // Evita el pasillo frente al usuario donde está la esfera y los paneles
-const clearPath = (x, z) => !(Math.abs(x) < 3 && z < 0 && z > -7)
+let WORLD = ''
+const clearPath = (x, z) => !(Math.abs(x) < 3 && z < 0 && z > -7) && !blocked(WORLD, x, z, 1.6)
 
 const HIDE = 'hide-on-enter-ar'
 let TER = null
@@ -123,7 +124,7 @@ const BUILDERS = {
     const r = rng(11)
     let o = `<a-entity id="sea" position="0 0.06 -30" water-surface="width: 180; depth: 42; seg: 160; amp: 0.22; flow: 0 0.35; speed: 1; deep: #0A3F66; shallow: #1E9BBF; skyTop: #F59E7B; skyHorizon: #FCE6C8; opacity: 0.9; foam: 0.9" ${HIDE}></a-entity>`
     o += `<a-circle radius="3.2" position="14 7 -55" material="shader: flat; color: #FFD27A" ${HIDE}></a-circle><a-circle radius="5" position="14 7 -55.1" material="shader: flat; color: #FFB86B; opacity: 0.35; transparent: true" ${HIDE}></a-circle>`
-    const palms = [[-6, -5], [-8, 2], [7, -4], [9, 3], [-12, -9], [12, -10], [-4, 7], [5, 8]]
+    const palms = [[-6, -5], [-8, 2], [7, -4], [9, 3], [-12, -4], [12, -3], [-4, 7], [5, 8]]
     palms.forEach(([x, z], i) => {
       const lean = (i % 2 ? 1 : -1) * (6 + r() * 6)
       let leaves = ''
@@ -177,8 +178,8 @@ const BUILDERS = {
   },
   fogata() {
     const r = rng(43)
-    const FX = -1.9
-    const FZ = -2.9
+    const FX = -3.8
+    const FZ = -5.2
     let o = ''
     for (let i = 0; i < 220; i++) {
       const a = r() * Math.PI * 2
@@ -269,7 +270,8 @@ const BUILDERS = {
 }
 
 export function buildWorld(kind) {
-  TER = WORLDS[kind].terrain || null
+  TER = WORLDS[kind].terrain ? { ...WORLDS[kind].terrain, world: kind } : null
+  WORLD = kind
   return BUILDERS[kind]()
 }
 
@@ -283,9 +285,9 @@ export function breathParticles() {
   return o + '</a-entity>'
 }
 
-export function terrainAttr(w) {
+export function terrainAttr(w, kind) {
   if (!w.terrain) return ''
-  return Object.entries(w.terrain).map(([k, v]) => `${k}: ${v}`).join('; ')
+  return Object.entries({ ...w.terrain, world: kind || '' }).map(([k, v]) => `${k}: ${v}`).join('; ')
 }
 
 export function envAttr(w) {
@@ -344,9 +346,55 @@ export function arFogata(id = 'ar-fogata', extra = '') {
   }
   for (let i = 0; i < 10; i++) o += `<a-sphere radius="${f(0.015 + r() * 0.015)}" position="${f((r() - 0.5) * 0.22)} 0.02 ${f((r() - 0.5) * 0.22)}" material="color: #FF5A1F; emissive: #FF3D00; emissiveIntensity: 1.2" animation="property: material.emissiveIntensity; from: 0.5; to: 1.6; dir: alternate; loop: true; dur: ${Math.round(300 + r() * 500)}"></a-sphere>`
   o += `<a-entity position="0 0.05 0" fire="scale: 0.42; flames: 120; sparks: 30; smoke: 20"></a-entity>
-    <a-entity id="${id}-orb" position="0 0.75 0" scale="0.7 0.7 0.7">
+    <a-entity id="${id}-orb" position="0.55 0.45 0.1" scale="0.7 0.7 0.7">
       <a-sphere radius="0.13" material="color: #FFD9A8; metalness: 0.1; roughness: 0.05; opacity: 0.5; transparent: true; emissive: #FF9A3D; emissiveIntensity: 0.4"></a-sphere>
     </a-entity>
   </a-entity>`
   return o
+}
+
+// Wayra, la viscacha andina: cuerpo redondeado, orejas largas, cola enroscada y bigotes.
+// Respira (escala suave), mueve las orejas y, cuando habla, mueve la cabeza.
+export function viscachaHTML(id = 'wayra', extra = '') {
+  const fur = 'color: #A08C78; roughness: 0.95'
+  const light = 'color: #D8CBB8; roughness: 0.95'
+  const dark = 'color: #3A2E26; roughness: 0.9'
+  return `<a-entity id="${id}" ${extra}>
+    <a-dodecahedron radius="0.35" position="0 0.17 0" scale="1.4 0.5 1.2" ${mat('stone', { color: '#CFC8BE' })}></a-dodecahedron>
+    <a-entity class="wayra-body" position="0 0.33 0" animation="property: scale; from: 1 1 1; to: 1.04 1.05 1.04; dir: alternate; loop: true; dur: 1800; easing: easeInOutSine">
+      <a-sphere radius="0.16" scale="1 1.15 1.05" position="0 0.13 0" material="${fur}"></a-sphere>
+      <a-sphere radius="0.11" scale="0.9 1.1 0.6" position="0 0.11 -0.09" material="${light}"></a-sphere>
+      <a-sphere radius="0.06" position="-0.1 0.0 -0.05" scale="1 0.7 1.3" material="${fur}"></a-sphere>
+      <a-sphere radius="0.06" position="0.1 0.0 -0.05" scale="1 0.7 1.3" material="${fur}"></a-sphere>
+      <a-sphere radius="0.035" position="-0.06 0.12 -0.15" material="${light}"></a-sphere>
+      <a-sphere radius="0.035" position="0.06 0.12 -0.15" material="${light}"></a-sphere>
+      <a-entity position="0 0.05 0.15" rotation="-20 0 0">
+        <a-cylinder radius="0.03" height="0.22" position="0 0.1 0.04" rotation="30 0 0" material="${fur}"></a-cylinder>
+        <a-sphere radius="0.075" position="0 0.24 0.12" scale="1 1 1.3" material="color: #4A3A2E; roughness: 1" animation="property: rotation; from: -6 0 0; to: 8 0 0; dir: alternate; loop: true; dur: 2600; easing: easeInOutSine"></a-sphere>
+      </a-entity>
+      <a-entity class="wayra-head" position="0 0.34 -0.03" animation="property: rotation; from: 0 -6 0; to: 0 6 0; dir: alternate; loop: true; dur: 3200; easing: easeInOutSine">
+        <a-sphere radius="0.12" scale="1 0.95 1.1" material="${fur}"></a-sphere>
+        <a-sphere radius="0.06" position="0 -0.03 -0.1" scale="1.1 0.8 1" material="${light}"></a-sphere>
+        <a-sphere radius="0.018" position="0 -0.005 -0.158" material="${dark}"></a-sphere>
+        <a-sphere radius="0.026" position="-0.055 0.03 -0.095" material="color: #111111; roughness: 0.15; metalness: 0.2"></a-sphere>
+        <a-sphere radius="0.026" position="0.055 0.03 -0.095" material="color: #111111; roughness: 0.15; metalness: 0.2"></a-sphere>
+        <a-sphere radius="0.007" position="-0.048 0.04 -0.118" material="shader: flat; color: #FFFFFF"></a-sphere>
+        <a-sphere radius="0.007" position="0.062 0.04 -0.118" material="shader: flat; color: #FFFFFF"></a-sphere>
+        <a-entity class="wayra-mouth" position="0 -0.05 -0.13"><a-torus radius="0.018" radius-tubular="0.004" arc="180" rotation="0 0 180" material="${dark}"></a-torus></a-entity>
+        <a-cylinder radius="0.002" height="0.16" position="-0.07 -0.03 -0.14" rotation="0 20 80" material="color: #F2F2F2"></a-cylinder>
+        <a-cylinder radius="0.002" height="0.16" position="0.07 -0.03 -0.14" rotation="0 -20 -80" material="color: #F2F2F2"></a-cylinder>
+        <a-cylinder radius="0.002" height="0.15" position="-0.07 -0.045 -0.14" rotation="0 20 95" material="color: #F2F2F2"></a-cylinder>
+        <a-cylinder radius="0.002" height="0.15" position="0.07 -0.045 -0.14" rotation="0 -20 -95" material="color: #F2F2F2"></a-cylinder>
+        <a-entity position="-0.06 0.11 0.01" rotation="0 0 14" animation="property: rotation; from: 0 0 10; to: 0 0 22; dir: alternate; loop: true; dur: 2100; easing: easeInOutSine">
+          <a-sphere radius="0.04" scale="0.55 2.4 0.35" position="0 0.07 0" material="${fur}"></a-sphere>
+          <a-sphere radius="0.03" scale="0.5 2.2 0.2" position="0 0.07 -0.008" material="color: #D9A99A; roughness: 0.9"></a-sphere>
+        </a-entity>
+        <a-entity position="0.06 0.11 0.01" rotation="0 0 -14" animation="property: rotation; from: 0 0 -10; to: 0 0 -22; dir: alternate; loop: true; dur: 2500; easing: easeInOutSine">
+          <a-sphere radius="0.04" scale="0.55 2.4 0.35" position="0 0.07 0" material="${fur}"></a-sphere>
+          <a-sphere radius="0.03" scale="0.5 2.2 0.2" position="0 0.07 -0.008" material="color: #D9A99A; roughness: 0.9"></a-sphere>
+        </a-entity>
+      </a-entity>
+    </a-entity>
+    <a-text class="wayra-bubble" value="" align="center" width="1.6" color="#FFFFFF" position="0 1.05 0" wrap-count="34"></a-text>
+  </a-entity>`
 }

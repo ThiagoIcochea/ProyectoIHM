@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Lightbulb, Speaker, Droplets, HeartPulse, Bluetooth, Zap, Power, Wind, Tv, Cast, Copy, Share2, Unplug, Link2 } from 'lucide-react'
+import { Lightbulb, Speaker, Droplets, HeartPulse, Bluetooth, Zap, Power, Wind, Tv, Cast, Copy, Share2, Unplug, Smartphone, ChevronRight } from 'lucide-react'
 import { useHub, startHub, stopHub, broadcastState, broadcastBreath, ROLES } from '../lib/hub'
 import { canChooseOutput, chooseOutput, setOutput } from '../lib/sound'
 import { getState, setIot, setState, useStore } from '../lib/store'
 import { playAmbient, stopAmbient, setAmbientVolume, SOUNDS } from '../lib/sound'
 import { useVoice, useVoiceCommands } from '../lib/voice'
-import { Segmented, Switch, HowTo, VoiceHints } from '../components/ui'
+import { Segmented, HowTo, VoiceHints, Sheet } from '../components/ui'
 import { toast } from '../components/Toast'
 import { MODALITIES } from '../lib/modalities'
 
@@ -78,6 +78,31 @@ export default function IoT() {
   useEffect(() => {
     if (hub.status === 'host') broadcastState({ lamp, speaker, diffuser, band: { bpm: band.bpm } })
   }, [hub.status, lamp, speaker, diffuser, band.bpm, Object.keys(hub.devices).length]) // eslint-disable-line react-hooks/exhaustive-deps
+  const [linkRole, setLinkRole] = useState(null)
+  const devicesOf = (role) => Object.values(hub.devices).filter((d) => d.role === role)
+  const hubCount = (role) => devicesOf(role).length
+  const openLink = (role) => { setLinkRole(role); if (hub.status !== 'host') startHub() }
+  function RoleTag({ role, fallback, live }) {
+    const n = hubCount(role)
+    return <span className={`tag ${n ? 'tag-live' : live ? 'tag-live' : 'tag-sim'}`}>{n ? `${n} vinculado${n > 1 ? 's' : ''}` : fallback}</span>
+  }
+  function LinkBox({ title, options }) {
+    return (
+      <div className="link-box">
+        <span className="label small">{title}</span>
+        {options.map((o) => {
+          const I = o.icon
+          return (
+            <button key={o.label} type="button" className="link-opt" onClick={o.role ? () => openLink(o.role) : o.onClick}>
+              <I size={18} aria-hidden="true" />
+              <span><b>{o.label}</b><br /><span className="muted small">{o.hint}</span></span>
+              <ChevronRight size={16} className="muted" aria-hidden="true" />
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
   const joinUrl = (role) => `${location.origin}${location.pathname}#/conectar?codigo=${hub.code}${role ? `&rol=${role}` : ''}`
   const castToTv = async () => {
     try {
@@ -90,8 +115,8 @@ export default function IoT() {
       if (e?.name !== 'NotAllowedError' && e?.name !== 'AbortError') toast('No se encontró una TV compatible (Chromecast o Android TV en la misma red).', { tone: 'warn', duration: 5000 })
     }
   }
-  const shareLink = async () => {
-    const url = joinUrl()
+  const shareLink = async (role) => {
+    const url = joinUrl(role)
     try {
       if (navigator.share) await navigator.share({ title: 'Escucha · Hogar conectado', text: `Código: ${hub.code}`, url })
       else { await navigator.clipboard.writeText(url); toast('Enlace copiado') }
@@ -205,36 +230,30 @@ export default function IoT() {
         <button type="button" role="switch" aria-checked={automation} aria-label="Automatización" className="switch" onClick={() => setIot('automation', !automation)} />
       </div>
 
-      <div className="grid">
+      <div className="grid iot-grid">
         <section className="card device" aria-labelledby="d-band">
           <div className="row between">
-            <div className="row"><span className="ico-tile danger"><HeartPulse size={22} /></span><div><h3 id="d-band">Pulsera</h3><span className={`tag ${band.source === 'ble' ? 'tag-live' : 'tag-sim'}`}>{band.source === 'ble' ? `Real · ${bleName}` : 'Simulada'}</span></div></div>
+            <div className="row"><span className="ico-tile danger"><HeartPulse size={22} /></span><div><h3 id="d-band">Reloj o pulsera</h3><span className={`tag ${band.source === 'ble' ? 'tag-live' : 'tag-sim'}`}>{band.source === 'ble' ? `Vinculado · ${bleName || 'Bluetooth'}` : 'Simulado'}</span></div></div>
           </div>
           <div className="row" style={{ alignItems: 'baseline', gap: 8 }}>
             <HeartPulse className="beat" size={28} style={{ '--beat': `${60 / band.bpm}s` }} aria-hidden="true" />
             <span className="bpm" aria-live="polite">{band.bpm}</span><span className="muted">lpm</span>
           </div>
           <Spark data={history} />
-          {band.source === 'sim' ? (
+          {band.source === 'sim' && (
             <div className="field">
               <label className="label" htmlFor="stress">Simular estrés: {band.stress}%</label>
               <input id="stress" type="range" min="0" max="100" value={band.stress} onChange={(e) => setIot('band', { stress: Number(e.target.value) })} />
             </div>
-          ) : null}
-          {supportsBLE ? (
-            band.source === 'ble' ? (
-              <button className="btn btn-sm" onClick={disconnectBLE}>Desconectar</button>
-            ) : (
-              <button className="btn btn-sm" onClick={() => navigate('/dispositivos')}><Bluetooth size={16} /> Conectar reloj o pulsera real</button>
-            )
-          ) : (
-            <span className="muted small">Bluetooth web no disponible aquí (usa Chrome en Android o laptop).</span>
           )}
+          <LinkBox title="Vincular" options={[
+            { icon: Bluetooth, label: 'Reloj o pulsera por Bluetooth', hint: 'Pulso, oxígeno y batería si el equipo los comparte; avisos en la muñeca.', onClick: () => navigate('/dispositivos') }
+          ]} />
         </section>
 
         <section className="card device" aria-labelledby="d-lamp">
           <div className="row between">
-            <div className="row"><span className="ico-tile"><Lightbulb size={22} /></span><div><h3 id="d-lamp">Lámpara</h3><span className="tag tag-sim">Simulada</span></div></div>
+            <div className="row"><span className="ico-tile"><Lightbulb size={22} /></span><div><h3 id="d-lamp">Luces inteligentes</h3><RoleTag role="luz" fallback="Simulada" /></div></div>
             <button type="button" role="switch" aria-checked={lamp.on} aria-label="Lámpara" className="switch" onClick={() => setIot('lamp', { on: !lamp.on })} />
           </div>
           <div className="lamp-visual" style={lampOn ? { background: `color-mix(in srgb, ${lampColor} ${lamp.level / 2}%, var(--surface-2))` } : undefined}>
@@ -245,11 +264,15 @@ export default function IoT() {
             <label className="label" htmlFor="lvl">Brillo: {lamp.level}%</label>
             <input id="lvl" type="range" min="10" max="100" value={lamp.level} onChange={(e) => setIot('lamp', { level: Number(e.target.value) })} />
           </div>
+          <LinkBox title="Vincular" role="luz" options={[
+            { icon: Smartphone, label: 'Teléfono o tablet como luz', hint: 'Su pantalla ilumina la habitación con el color y brillo de la escena.', role: 'luz' },
+            { icon: Bluetooth, label: 'Foco Bluetooth', hint: 'Se vincula y explora; el control de color depende del fabricante.', onClick: () => navigate('/dispositivos') }
+          ]} />
         </section>
 
         <section className="card device" aria-labelledby="d-spk">
           <div className="row between">
-            <div className="row"><span className="ico-tile"><Speaker size={22} /></span><div><h3 id="d-spk">Parlante</h3><span className="tag tag-live">Sonido real</span></div></div>
+            <div className="row"><span className="ico-tile"><Speaker size={22} /></span><div><h3 id="d-spk">Parlantes</h3><RoleTag role="parlante" fallback="Sonido real en este equipo" live /></div></div>
             <button type="button" role="switch" aria-checked={speaker.on} aria-label="Parlante" className="switch" onClick={() => setIot('speaker', { on: !speaker.on })} />
           </div>
           <Segmented label="Sonido" value={speaker.sound} onChange={(x) => setIot('speaker', { sound: x, on: true })} options={Object.entries(SOUNDS).map(([value, label]) => ({ value, label }))} />
@@ -257,6 +280,32 @@ export default function IoT() {
             <label className="label" htmlFor="vol">Volumen: {speaker.volume}%</label>
             <input id="vol" type="range" min="0" max="100" value={speaker.volume} onChange={(e) => setIot('speaker', { volume: Number(e.target.value) })} />
           </div>
+          <LinkBox title="Vincular" role="parlante" options={[
+            ...(canChooseOutput ? [{ icon: Bluetooth, label: 'Parlante Bluetooth o TV por HDMI', hint: outName ? `Sonando por: ${outName}` : 'Empareja el parlante en tu sistema y elígelo aquí.', onClick: pickOutput }] : []),
+            { icon: Smartphone, label: 'Otro teléfono o laptop como parlante', hint: 'Reproduce el mismo sonido, sincronizado con este panel.', role: 'parlante' }
+          ]} />
+          {outs.length > 0 && (
+            <select className="select" style={{ minHeight: 40 }} defaultValue="" onChange={(e) => setOutput(e.target.value).then(() => setOutName(e.target.selectedOptions[0].text)).catch(() => {})}>
+              <option value="" disabled>Elige una salida de audio</option>
+              {outs.map((o) => <option key={o.deviceId} value={o.deviceId}>{o.label || 'Salida de audio'}</option>)}
+            </select>
+          )}
+        </section>
+
+        <section className="card device" aria-labelledby="d-tv">
+          <div className="row between">
+            <div className="row"><span className="ico-tile"><Tv size={22} /></span><div><h3 id="d-tv">Televisor</h3><RoleTag role="tv" fallback="Sin conectar" /></div></div>
+          </div>
+          <div className="tv-mini" style={{ '--glow': lampOn ? lampColor : '#2F86D6' }} aria-hidden="true"><span /></div>
+          <p className="muted small">La TV muestra la respiración guiada en grande, con la luz de la escena, el reloj y el pulso.</p>
+          <div className="row-wrap">
+            <button className="btn btn-sm" disabled={!hubCount('tv')} onClick={() => { broadcastBreath('start'); toast('Respiración enviada a la TV') }}><Wind size={16} /> Respirar en la TV</button>
+            <button className="btn btn-sm btn-ghost" disabled={!hubCount('tv')} onClick={() => broadcastBreath('stop')}>Detener</button>
+          </div>
+          <LinkBox title="Vincular" role="tv" options={[
+            ...('PresentationRequest' in window ? [{ icon: Cast, label: 'Chromecast o Android TV', hint: 'Desde Chrome, en la misma red Wi‑Fi.', onClick: castToTv }] : []),
+            { icon: Tv, label: 'Smart TV con navegador', hint: 'Abre el enlace en la TV (o escribe el código) y queda sincronizada.', role: 'tv' }
+          ]} />
         </section>
 
         <section className="card device" aria-labelledby="d-dif">
@@ -266,48 +315,35 @@ export default function IoT() {
           </div>
           <Segmented label="Intensidad" value={diffuser.level} onChange={(x) => setIot('diffuser', { level: x, on: true })} options={[{ value: 1, label: 'Suave' }, { value: 2, label: 'Media' }, { value: 3, label: 'Alta' }]} />
           <p className="muted small">{diffuser.on ? `Encendido · intensidad ${['', 'suave', 'media', 'alta'][diffuser.level]}` : 'Apagado'}</p>
+          <LinkBox title="Vincular" options={[
+            { icon: Bluetooth, label: 'Difusor Bluetooth', hint: 'Se vincula y explora. La mayoría de difusores Wi‑Fi o con enchufe inteligente solo se manejan desde su propia app.', onClick: () => navigate('/dispositivos') }
+          ]} />
         </section>
       </div>
 
-      <section className="card stack" aria-labelledby="d-more">
-        <div className="row between" style={{ flexWrap: 'wrap', gap: 8 }}>
-          <div className="row"><span className="ico-tile"><Tv size={22} /></span><div><h3 id="d-more">Más dispositivos: TV, parlantes y luces</h3><span className="muted small">Cualquier teléfono, tablet, laptop o Smart TV con navegador se suma a la escena.</span></div></div>
-          {hub.status === 'host' ? (
-            <button className="btn btn-sm btn-ghost" onClick={stopHub}><Unplug size={16} /> Desconectar todos</button>
-          ) : (
-            <button className="btn btn-primary btn-sm" disabled={hub.status === 'connecting'} onClick={startHub}><Link2 size={16} /> {hub.status === 'connecting' ? 'Creando código…' : 'Conectar dispositivos'}</button>
-          )}
-        </div>
-        {hub.status === 'host' && (
-          <>
-            <div className="row-wrap" style={{ alignItems: 'center' }}>
-              <span className="card tnum" style={{ padding: '8px 16px', fontSize: '1.5rem', fontWeight: 750, letterSpacing: '0.18em' }}>{hub.code}</span>
-              <button className="btn btn-sm" onClick={shareLink}><Share2 size={16} /> Compartir enlace</button>
-              <button className="btn btn-sm" onClick={() => navigator.clipboard?.writeText(hub.code).then(() => toast('Código copiado'))}><Copy size={16} /> Copiar código</button>
-            </div>
-            <p className="muted small">En el otro dispositivo abre <b>{location.host}{location.pathname}#/conectar</b>, escribe el código y elige si será Pantalla/TV, Parlante o Luz.</p>
-            <div className="row-wrap">
-              {Object.values(hub.devices).length === 0 ? <span className="muted small">Aún no hay dispositivos conectados.</span> : Object.values(hub.devices).map((d) => <span key={d.id} className="tag tag-live">{ROLES[d.role] || d.role} · {d.name}</span>)}
-            </div>
-            <div className="row-wrap">
-              <button className="btn btn-sm" onClick={() => { broadcastBreath('start'); toast('Respiración enviada a la TV') }}><Wind size={16} /> Respirar en la TV</button>
-              <button className="btn btn-sm btn-ghost" onClick={() => broadcastBreath('stop')}>Detener</button>
-            </div>
-          </>
+      <Sheet open={!!linkRole} onClose={() => setLinkRole(null)} title={linkRole ? `Vincular: ${ROLES[linkRole]}` : ''}>
+        {linkRole && (
+          <div className="stack">
+            {hub.status !== 'host' ? (
+              <p className="muted">{hub.status === 'connecting' ? 'Creando código…' : 'Preparando…'}</p>
+            ) : (
+              <>
+                <p className="muted">En el otro dispositivo abre este enlace, o entra a <b>{location.host}{location.pathname}#/conectar</b> y escribe el código.</p>
+                <div className="card tnum" style={{ textAlign: 'center', fontSize: '1.8rem', fontWeight: 750, letterSpacing: '0.2em' }}>{hub.code}</div>
+                <div className="row-wrap">
+                  <button className="btn btn-primary" onClick={() => shareLink(linkRole)}><Share2 size={18} /> Compartir enlace</button>
+                  <button className="btn" onClick={() => navigator.clipboard?.writeText(joinUrl(linkRole)).then(() => toast('Enlace copiado'))}><Copy size={18} /> Copiar enlace</button>
+                </div>
+                <div className="row-wrap">
+                  {devicesOf(linkRole).length === 0 ? <span className="muted small">Esperando dispositivos…</span> : devicesOf(linkRole).map((d) => <span key={d.id} className="tag tag-live">{d.name}</span>)}
+                </div>
+              </>
+            )}
+            {hub.error && <div className="notice warn" role="alert">{hub.error}</div>}
+            {hub.status === 'host' && <button className="btn btn-ghost" onClick={() => { stopHub(); setLinkRole(null) }}><Unplug size={18} /> Desconectar todos los dispositivos</button>}
+          </div>
         )}
-        <div className="row-wrap">
-          {'PresentationRequest' in window && <button className="btn btn-sm" onClick={castToTv}><Cast size={16} /> Transmitir a la TV (Chromecast)</button>}
-          {canChooseOutput && <button className="btn btn-sm" onClick={pickOutput}><Speaker size={16} /> Sonido por otro parlante</button>}
-          {outs.length > 0 && (
-            <select className="select" style={{ maxWidth: 280, minHeight: 40 }} defaultValue="" onChange={(e) => setOutput(e.target.value).then(() => setOutName(e.target.selectedOptions[0].text)).catch(() => {})}>
-              <option value="" disabled>Elige una salida</option>
-              {outs.map((o) => <option key={o.deviceId} value={o.deviceId}>{o.label || 'Salida de audio'}</option>)}
-            </select>
-          )}
-          {outName && <span className="tag">Sonido por: {outName}</span>}
-        </div>
-        {hub.error && <div className="notice warn" role="alert">{hub.error}</div>}
-      </section>
+      </Sheet>
 
       <div className="grid-2">
         <section className="card stack-sm">

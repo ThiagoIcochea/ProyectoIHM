@@ -5,11 +5,37 @@ import { useAccount, logout, exportData, download } from '../lib/auth'
 import { Sheet } from '../components/ui'
 import { resetAll, setState, useStore } from '../lib/store'
 import { testKey, explainError, hasKey } from '../lib/groq'
-import { supportsSR, supportsTTS, useVoice } from '../lib/voice'
+import { supportsSR, supportsTTS, useVoice, spanishVoices, pickVoice, setVoiceFor } from '../lib/voice'
 import { Segmented, Switch, Notice } from '../components/ui'
 import { setDeviceKey, getProxy, setProxy, aiSource } from '../lib/groq'
 import { DESTINATIONS } from '../lib/intents'
 import { toast } from '../components/Toast'
+
+function VoicePicker({ profile, label, sample }) {
+  const v = useVoice()
+  const [voices, setVoices] = useState(() => spanishVoices())
+  const [cur, setCur] = useState(() => pickVoice(profile)?.name || '')
+  useEffect(() => {
+    if (!supportsTTS) return
+    const on = () => { setVoices(spanishVoices()); setCur(pickVoice(profile)?.name || '') }
+    speechSynthesis.addEventListener?.('voiceschanged', on)
+    const t = setTimeout(on, 600)
+    return () => { speechSynthesis.removeEventListener?.('voiceschanged', on); clearTimeout(t) }
+  }, [profile])
+  if (!supportsTTS) return null
+  return (
+    <div className="field">
+      <label className="label" htmlFor={`voice-${profile}`}>{label}</label>
+      <div className="row" style={{ gap: 8 }}>
+        <select id={`voice-${profile}`} className="select" value={cur} onChange={(e) => { setVoiceFor(profile, e.target.value); setCur(e.target.value) }}>
+          {voices.length === 0 && <option value="">Sin voces en español en este dispositivo</option>}
+          {voices.map((x) => <option key={x.name} value={x.name}>{x.name} · {x.lang}</option>)}
+        </select>
+        <button className="btn" onClick={() => v.speak(sample, { force: true, profile })}>Probar</button>
+      </div>
+    </div>
+  )
+}
 
 export default function Profile() {
   const s = useStore()
@@ -108,6 +134,9 @@ export default function Profile() {
           <Switch id="hf" label="Manos libres" hint="Escucha todo el tiempo, sin tocar el micrófono" checked={s.handsFree} onChange={(x) => setState({ handsFree: x })} />
           <Switch id="ww" label="Palabra de activación" hint="Con manos libres, solo responde si empiezas con “Escucha…”" checked={s.wakeWord} onChange={(x) => setState({ wakeWord: x })} />
         </div>
+        <VoicePicker profile="serena" label="Voz del asistente" sample="Hola. Estoy aquí para escucharte, con calma y sin apuro." />
+        <VoicePicker profile="viscacha" label="Voz de Wayra, la viscacha" sample="¡Hola! Soy Wayra. Pensemos juntos, paso a paso." />
+        <p className="muted small">Elegimos automáticamente una voz femenina y natural si tu dispositivo la tiene. En Edge suele aparecer “Camila (Perú)”, que es la más natural.</p>
         <div className="stack-sm">
           <h3>Qué puedes decir en cualquier pantalla</h3>
           <ul className="muted" style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 4 }}>

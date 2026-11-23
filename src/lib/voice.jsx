@@ -17,18 +17,44 @@ const SCALES = [100, 130, 160, 200]
 const VoiceCtx = createContext(null)
 export const useVoice = () => useContext(VoiceCtx)
 
-let pickedVoice = null
-function pickVoice() {
-  if (!supportsTTS) return null
-  const voices = speechSynthesis.getVoices()
-  pickedVoice =
-    voices.find((v) => /es[-_]PE/i.test(v.lang)) ||
-    voices.find((v) => /es[-_](419|MX|US|CO|AR|CL)/i.test(v.lang)) ||
-    voices.find((v) => /^es/i.test(v.lang)) ||
-    null
-  return pickedVoice
+// Voces: se prefieren voces femeninas naturales en español (Edge trae "Camila" de Perú con calidad neural).
+// "serena" es la voz del asistente; "viscacha" es la de Wayra, más alegre y un poco más aguda.
+const FEMALE = /(camila|dalia|elvira|paloma|elena|paulina|m[oó]nica|sabina|helena|laura|lucia|luc[ií]a|marisol|soledad|ximena|salome|larissa|renata|beatriz|francisca|catalina|valentina|female|mujer|google español)/i
+const MALE = /(jorge|pablo|diego|raul|ra[uú]l|alvaro|[aá]lvaro|enrique|carlos|juan|andr[eé]s|tom[aá]s|gonzalo|male|hombre)/i
+const VOICE_KEY = 'escucha.voice'
+export const PROFILES = { serena: { rate: 0.92, pitch: 1.0 }, viscacha: { rate: 1.0, pitch: 1.3 } }
+
+export function spanishVoices() {
+  if (!supportsTTS) return []
+  return speechSynthesis.getVoices().filter((v) => /^es/i.test(v.lang))
 }
-if (supportsTTS) speechSynthesis.onvoiceschanged = pickVoice
+function score(v) {
+  let sc = 0
+  if (/natural|neural|online|premium|enhanced/i.test(v.name)) sc += 6
+  if (/camila/i.test(v.name)) sc += 5
+  if (FEMALE.test(v.name)) sc += 4
+  if (MALE.test(v.name)) sc -= 6
+  if (/es[-_]PE/i.test(v.lang)) sc += 3
+  else if (/es[-_](419|MX|US|CO|AR|CL)/i.test(v.lang)) sc += 2
+  if (v.localService === false) sc += 1
+  return sc
+}
+export function pickVoice(profile = 'serena') {
+  const voices = spanishVoices()
+  if (!voices.length) return null
+  let chosen = ''
+  try { chosen = localStorage.getItem(`${VOICE_KEY}.${profile}`) || '' } catch { /* nada */ }
+  const manual = chosen && voices.find((v) => v.name === chosen)
+  if (manual) return manual
+  const ranked = [...voices].sort((a, b) => score(b) - score(a))
+  // Wayra usa otra voz femenina si existe, para distinguirse del asistente
+  if (profile === 'viscacha') return ranked.find((v, i) => i > 0 && FEMALE.test(v.name) && !MALE.test(v.name)) || ranked[0]
+  return ranked[0]
+}
+export function setVoiceFor(profile, name) {
+  try { name ? localStorage.setItem(`${VOICE_KEY}.${profile}`, name) : localStorage.removeItem(`${VOICE_KEY}.${profile}`) } catch { /* nada */ }
+}
+if (supportsTTS) speechSynthesis.onvoiceschanged = () => pickVoice()
 
 export function VoiceProvider({ children }) {
   const navigate = useNavigate()
@@ -54,15 +80,18 @@ export function VoiceProvider({ children }) {
   locRef.current = location.pathname
 
   // ---------- TTS ----------
-  const speak = useCallback((text, { force = false, onEnd } = {}) => {
+  const speak = useCallback((text, { force = false, onEnd, profile = 'serena', onStart } = {}) => {
     if (!supportsTTS || !text) return onEnd?.()
     if (!force && !getState().tts) return onEnd?.()
     speechSynthesis.cancel()
     const u = new SpeechSynthesisUtterance(text)
     u.lang = 'es-PE'
-    const v = pickedVoice || pickVoice()
-    if (v) u.voice = v
-    u.rate = 1.02
+    const v = pickVoice(profile)
+    if (v) { u.voice = v; u.lang = v.lang }
+    const pr = PROFILES[profile] || PROFILES.serena
+    u.rate = pr.rate
+    u.pitch = pr.pitch
+    u.onstart = () => onStart?.()
     speakingRef.current = true
     try { recRef.current?.abort() } catch { /* nada */ }
     setStatus('speaking')

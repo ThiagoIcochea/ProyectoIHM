@@ -23,7 +23,8 @@ Escucha es una app anónima para adolescentes y jóvenes (12–21 años) que nec
 - **Mis dispositivos** (`/dispositivos`): vincula relojes o pulseras por Web Bluetooth y lee los servicios GATT estándar (frecuencia cardiaca, SpO₂, temperatura, presión, batería) y envía alertas o notificaciones si el equipo lo permite. Para relojes que no comparten esos servicios, Escucha envía notificaciones del sistema que el reloj emparejado refleja.
 
 ## Salas y hogar conectado (WebRTC)
-- **Salas de autoayuda** (RV/RA): por defecto personales; con *Crear sala* se genera un código de 6 caracteres. Hasta 6 personas, avatares que siguen la orientación del teléfono o visor, gestos predefinidos (sin chat libre) y respiración sincronizada.
+- **Sala personal con Wayra**: una viscacha andina con IA (Groq o respuestas locales) que ayuda a pensar con preguntas y habla con voz propia.
+- **Salas de autoayuda** (RV/RA): por defecto personales; con *Crear sala* se genera un código de 6 caracteres. Hasta 6 personas con personaje personalizable (mujer u hombre, piel, peinado, color de pelo, ropa, accesorio) cuya cabeza sigue la orientación del teléfono o visor; el anfitrión elige el escenario para todos; voz por WebRTC (micrófono o auricular Bluetooth emparejado); gestos predefinidos (sin chat escrito) y respiración sincronizada.
 - **Hogar conectado**: *Conectar dispositivos* genera un código; otros teléfonos, laptops o Smart TV abren `#/conectar` y actúan como **Pantalla/TV**, **Parlante** o **Luz**. También: *Transmitir a la TV* (Presentation API, Chromecast/Android TV) y *Sonido por otro parlante* (`setSinkId`).
 - Usa PeerJS con su servidor público gratuito para el enlace; los datos viajan directo entre dispositivos. Para un servidor propio: `VITE_PEER_HOST`, `VITE_PEER_PORT`, `VITE_PEER_PATH`.
 

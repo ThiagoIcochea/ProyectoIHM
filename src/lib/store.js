@@ -22,6 +22,7 @@ const defaults = {
   tts: true, // leer respuestas en voz alta
   captions: true, // subtítulos de lo que se escucha
   handsFree: false,
+  avatar: null,
   wakeWord: false,
   groqKey: '',
   checkins: [], // {id, date, emotions[], intensity, note}

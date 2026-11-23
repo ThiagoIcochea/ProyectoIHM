@@ -159,7 +159,7 @@ export function registerXR() {
     schema: {
       size: { default: 140 }, seg: { default: 160 }, height: { default: 6 }, flat: { default: 9 }, scale: { default: 0.035 },
       low: { type: 'color', default: '#4E8A3A' }, mid: { type: 'color', default: '#7A9A4A' }, high: { type: 'color', default: '#8E8A80' }, peak: { type: 'color', default: '#F1F4F7' },
-      snow: { default: 999 }, tex: { default: 'grass' }, repeat: { default: 48 }
+      snow: { default: 999 }, tex: { default: 'grass' }, repeat: { default: 48 }, world: { default: '' }
     },
     update() {
       const d = this.data
