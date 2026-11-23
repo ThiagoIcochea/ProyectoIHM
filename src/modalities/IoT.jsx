@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Lightbulb, Speaker, Droplets, HeartPulse, Bluetooth, Zap, Power, Wind } from 'lucide-react'
+import { Lightbulb, Speaker, Droplets, HeartPulse, Bluetooth, Zap, Power, Wind, Tv, Cast, Copy, Share2, Unplug, Link2 } from 'lucide-react'
+import { useHub, startHub, stopHub, broadcastState, broadcastBreath, ROLES } from '../lib/hub'
+import { canChooseOutput, chooseOutput, setOutput } from '../lib/sound'
 import { getState, setIot, setState, useStore } from '../lib/store'
 import { playAmbient, stopAmbient, setAmbientVolume, SOUNDS } from '../lib/sound'
 import { useVoice, useVoiceCommands } from '../lib/voice'
@@ -69,6 +71,40 @@ export default function IoT() {
   useEffect(() => setAmbientVolume(speaker.volume / 100), [speaker.volume])
   useEffect(() => () => stopAmbient(), [])
 
+  // ---------- Más dispositivos: TV, parlantes y luces extra sincronizados ----------
+  const hub = useHub()
+  const [outs, setOuts] = useState([])
+  const [outName, setOutName] = useState('')
+  useEffect(() => {
+    if (hub.status === 'host') broadcastState({ lamp, speaker, diffuser, band: { bpm: band.bpm } })
+  }, [hub.status, lamp, speaker, diffuser, band.bpm, Object.keys(hub.devices).length]) // eslint-disable-line react-hooks/exhaustive-deps
+  const joinUrl = (role) => `${location.origin}${location.pathname}#/conectar?codigo=${hub.code}${role ? `&rol=${role}` : ''}`
+  const castToTv = async () => {
+    try {
+      const code = hub.code || (await startHub())
+      if (!code) return
+      const req = new window.PresentationRequest([`${location.origin}${location.pathname}#/conectar?codigo=${code}&rol=tv`])
+      await req.start()
+      toast('Transmitiendo a la TV')
+    } catch (e) {
+      if (e?.name !== 'NotAllowedError' && e?.name !== 'AbortError') toast('No se encontró una TV compatible (Chromecast o Android TV en la misma red).', { tone: 'warn', duration: 5000 })
+    }
+  }
+  const shareLink = async () => {
+    const url = joinUrl()
+    try {
+      if (navigator.share) await navigator.share({ title: 'Escucha · Hogar conectado', text: `Código: ${hub.code}`, url })
+      else { await navigator.clipboard.writeText(url); toast('Enlace copiado') }
+    } catch { /* cancelado */ }
+  }
+  const pickOutput = async () => {
+    try {
+      const r = await chooseOutput()
+      if (typeof r === 'string') setOutName(r)
+      else setOuts(r)
+    } catch { toast('No se pudo cambiar la salida de audio.', { tone: 'warn' }) }
+  }
+
   const calmScene = (reason) => {
     setState((s) => ({
       iot: { ...s.iot, lamp: { ...s.iot.lamp, on: true, mode: 'calma', level: 55 }, speaker: { ...s.iot.speaker, on: true, sound: 'lluvia' }, diffuser: { ...s.iot.diffuser, on: true } }
@@ -88,6 +124,7 @@ export default function IoT() {
       if (Date.now() - highSince.current > 5000 && Date.now() > cooldown.current) {
         cooldown.current = Date.now() + 60000
         calmScene(`Pulso alto (${band.bpm} lpm): escena calma automática`)
+        broadcastBreath('start')
         toast(`Tu pulso está en ${band.bpm}. Activé la escena calma.`, { action: { label: 'Respirar', onClick: () => navigate('/respirar') }, duration: 7000 })
         v.speak('Noto tu pulso acelerado. Encendí una luz suave y sonido de lluvia. ¿Respiramos juntos un minuto?')
       }
@@ -232,6 +269,46 @@ export default function IoT() {
         </section>
       </div>
 
+      <section className="card stack" aria-labelledby="d-more">
+        <div className="row between" style={{ flexWrap: 'wrap', gap: 8 }}>
+          <div className="row"><span className="ico-tile"><Tv size={22} /></span><div><h3 id="d-more">Más dispositivos: TV, parlantes y luces</h3><span className="muted small">Cualquier teléfono, tablet, laptop o Smart TV con navegador se suma a la escena.</span></div></div>
+          {hub.status === 'host' ? (
+            <button className="btn btn-sm btn-ghost" onClick={stopHub}><Unplug size={16} /> Desconectar todos</button>
+          ) : (
+            <button className="btn btn-primary btn-sm" disabled={hub.status === 'connecting'} onClick={startHub}><Link2 size={16} /> {hub.status === 'connecting' ? 'Creando código…' : 'Conectar dispositivos'}</button>
+          )}
+        </div>
+        {hub.status === 'host' && (
+          <>
+            <div className="row-wrap" style={{ alignItems: 'center' }}>
+              <span className="card tnum" style={{ padding: '8px 16px', fontSize: '1.5rem', fontWeight: 750, letterSpacing: '0.18em' }}>{hub.code}</span>
+              <button className="btn btn-sm" onClick={shareLink}><Share2 size={16} /> Compartir enlace</button>
+              <button className="btn btn-sm" onClick={() => navigator.clipboard?.writeText(hub.code).then(() => toast('Código copiado'))}><Copy size={16} /> Copiar código</button>
+            </div>
+            <p className="muted small">En el otro dispositivo abre <b>{location.host}{location.pathname}#/conectar</b>, escribe el código y elige si será Pantalla/TV, Parlante o Luz.</p>
+            <div className="row-wrap">
+              {Object.values(hub.devices).length === 0 ? <span className="muted small">Aún no hay dispositivos conectados.</span> : Object.values(hub.devices).map((d) => <span key={d.id} className="tag tag-live">{ROLES[d.role] || d.role} · {d.name}</span>)}
+            </div>
+            <div className="row-wrap">
+              <button className="btn btn-sm" onClick={() => { broadcastBreath('start'); toast('Respiración enviada a la TV') }}><Wind size={16} /> Respirar en la TV</button>
+              <button className="btn btn-sm btn-ghost" onClick={() => broadcastBreath('stop')}>Detener</button>
+            </div>
+          </>
+        )}
+        <div className="row-wrap">
+          {'PresentationRequest' in window && <button className="btn btn-sm" onClick={castToTv}><Cast size={16} /> Transmitir a la TV (Chromecast)</button>}
+          {canChooseOutput && <button className="btn btn-sm" onClick={pickOutput}><Speaker size={16} /> Sonido por otro parlante</button>}
+          {outs.length > 0 && (
+            <select className="select" style={{ maxWidth: 280, minHeight: 40 }} defaultValue="" onChange={(e) => setOutput(e.target.value).then(() => setOutName(e.target.selectedOptions[0].text)).catch(() => {})}>
+              <option value="" disabled>Elige una salida</option>
+              {outs.map((o) => <option key={o.deviceId} value={o.deviceId}>{o.label || 'Salida de audio'}</option>)}
+            </select>
+          )}
+          {outName && <span className="tag">Sonido por: {outName}</span>}
+        </div>
+        {hub.error && <div className="notice warn" role="alert">{hub.error}</div>}
+      </section>
+
       <div className="grid-2">
         <section className="card stack-sm">
           <h3>Actividad</h3>
@@ -245,7 +322,9 @@ export default function IoT() {
           items={[
             'Laptop o móvil: mueve “Simular estrés” a más de 60 % y espera unos segundos; la automatización se dispara sola.',
             'Pulsera real: en Chrome (Android, Windows, macOS) toca “Conectar pulsera real” y elige una banda que use el perfil estándar de frecuencia cardiaca por Bluetooth (por ejemplo, una Polar H10).',
-            'El parlante suena de verdad en tu dispositivo. La lámpara y el difusor están simulados: en producción se conectarían por MQTT o Matter.'
+            'El parlante suena de verdad en tu dispositivo. La lámpara y el difusor están simulados: en producción se conectarían por MQTT o Matter.',
+            'TV y parlantes extra: toca “Conectar dispositivos” y abre el enlace en la Smart TV, otra laptop o un teléfono. La TV muestra la respiración y la luz de la escena; los parlantes reproducen el mismo sonido; un teléfono en modo Luz ilumina la habitación con el color de la lámpara.',
+            '“Sonido por otro parlante” envía el audio a un parlante Bluetooth o a la TV por HDMI (Chrome, Edge o Firefox).'
           ]}
         />
       </div>

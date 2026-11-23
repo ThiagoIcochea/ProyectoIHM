@@ -21,13 +21,33 @@ function noiseBuffer(c, seconds = 4) {
   return buf
 }
 
-export const SOUNDS = { lluvia: 'Lluvia', olas: 'Olas', bosque: 'Bosque' }
+export const SOUNDS = { lluvia: 'Lluvia', olas: 'Olas', bosque: 'Bosque', fogata: 'Fogata' }
+
+// Chasquidos de leña: impulsos cortos aleatorios sobre un fondo grave
+function crackleBuffer(c, seconds = 6) {
+  const len = c.sampleRate * seconds
+  const buf = c.createBuffer(1, len, c.sampleRate)
+  const d = buf.getChannelData(0)
+  let last = 0
+  for (let i = 0; i < len; i++) {
+    last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02
+    d[i] = last * 2.2
+  }
+  const pops = Math.round(seconds * 14)
+  for (let p = 0; p < pops; p++) {
+    const at = Math.floor(Math.random() * (len - 2000))
+    const amp = 0.2 + Math.random() * 0.8
+    const dur = 80 + Math.floor(Math.random() * 600)
+    for (let k = 0; k < dur; k++) d[at + k] += (Math.random() * 2 - 1) * amp * Math.exp(-k / (dur / 5))
+  }
+  return buf
+}
 
 export function playAmbient(kind = 'lluvia', volume = 0.5) {
   stopAmbient()
   const c = ac()
   const src = c.createBufferSource()
-  src.buffer = noiseBuffer(c)
+  src.buffer = kind === 'fogata' ? crackleBuffer(c) : noiseBuffer(c)
   src.loop = true
   const filter = c.createBiquadFilter()
   const gain = c.createGain()
@@ -51,6 +71,10 @@ export function playAmbient(kind = 'lluvia', volume = 0.5) {
     lfo.connect(lfoGain).connect(gain.gain)
     lfo.start()
     nodes.push(lfo)
+  } else if (kind === 'fogata') {
+    filter.type = 'lowpass'
+    filter.frequency.value = 3800
+    gain.gain.value = 0.6
   } else {
     filter.type = 'bandpass'
     filter.frequency.value = 1800
@@ -97,4 +121,23 @@ export function chime(freq = 528, dur = 0.6, vol = 0.12) {
 
 export function vibrate(pattern) {
   try { navigator.vibrate?.(pattern) } catch { /* sin vibración */ }
+}
+
+// Elegir por dónde sale el sonido (parlante Bluetooth, TV por HDMI…). Chrome/Edge 110+ y Firefox.
+export const canChooseOutput = typeof window !== 'undefined' && (('setSinkId' in (window.AudioContext?.prototype || {})) || !!navigator.mediaDevices?.selectAudioOutput)
+export async function chooseOutput() {
+  const c = ac()
+  if (navigator.mediaDevices?.selectAudioOutput) {
+    const dev = await navigator.mediaDevices.selectAudioOutput()
+    if (c.setSinkId) await c.setSinkId(dev.deviceId)
+    return dev.label
+  }
+  // Chrome no tiene selector: pedimos permiso de micrófono para ver los nombres de las salidas
+  try { (await navigator.mediaDevices.getUserMedia({ audio: true })).getTracks().forEach((t) => t.stop()) } catch { /* sin nombres */ }
+  const outs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audiooutput')
+  return outs
+}
+export async function setOutput(deviceId) {
+  const c = ac()
+  if (c.setSinkId) await c.setSinkId(deviceId)
 }

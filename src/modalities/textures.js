@@ -1,7 +1,7 @@
 // Texturas realistas generadas en el navegador (ruido fractal repetible + mapa de normales).
 // No se descarga ninguna imagen: todo sale de un canvas y se guarda en memoria la primera vez.
 
-const SIZE = 256
+const SIZE = 384
 const cache = {}
 
 function hashRand(seed) {
@@ -101,23 +101,23 @@ export const TEXTURES = {
       return f + cracks
     }, (v, x, y) => {
       const speck = fbm(N.stone, x * 3, y * 3, 16, 2) > 0.62 ? 0.12 : 0
-      return mix(hex('#4E555B'), hex('#A7AEB3'), clamp(v * 1.2 - 0.1 + speck))
+      return mix(hex('#5A5F63'), hex('#C9CDD0'), clamp(v * 1.2 - 0.1 + speck))
     }, 3),
   bark: () =>
     build('bark', (x, y) => {
       const ridges = Math.sin((x / SIZE) * Math.PI * 2 * 9 + fbm(N.bark, x, y, 4, 4) * 6)
       return 0.5 + ridges * 0.35 + fbm(N.bark, x, y, 8, 3) * 0.3
-    }, (v) => mix(hex('#3B2A1E'), hex('#8A6A4E'), clamp(v)), 3.4),
+    }, (v) => mix(hex('#4A3424'), hex('#A9845F'), clamp(v)), 3.4),
   grass: () =>
     build('grass', (x, y) => fbm(N.grass, x, y, 32, 4, 0.6), (v, x, y) => {
       const patch = fbm(N.grass, x + 40, y + 9, 3, 3)
-      return mix(mix(hex('#2F5E2A'), hex('#6B9A3C'), clamp(v * 1.3 - 0.15)), hex('#8B8A4A'), clamp((patch - 0.6) * 2))
+      return mix(mix(hex('#3D7A2E'), hex('#8CC04F'), clamp(v * 1.3 - 0.15)), hex('#8B8A4A'), clamp((patch - 0.6) * 2))
     }, 1.6),
   sand: () =>
     build('sand', (x, y) => fbm(N.sand, x, y, 6, 3) * 0.6 + Math.sin((y / SIZE) * Math.PI * 2 * 6 + fbm(N.sand, x, y, 3, 2) * 4) * 0.15 + fbm(N.sand, x, y, 64, 2) * 0.25,
-      (v) => mix(hex('#C9AE7C'), hex('#F1DFB6'), clamp(v)), 1.4),
+      (v) => mix(hex('#D9BC85'), hex('#FFF0CC'), clamp(v)), 1.4),
   moss: () =>
-    build('moss', (x, y) => fbm(N.moss, x, y, 16, 5, 0.6), (v) => mix(hex('#24451C'), hex('#7FA645'), clamp(v * 1.4 - 0.2)), 2.4),
+    build('moss', (x, y) => fbm(N.moss, x, y, 16, 5, 0.6), (v) => mix(hex('#2E5A22'), hex('#9CCB55'), clamp(v * 1.4 - 0.2)), 2.4),
   water: () =>
     build('water', (x, y) => fbm(N.water, x, y, 4, 4) * 0.7 + Math.sin(((x + y) / SIZE) * Math.PI * 2 * 3) * 0.08,
       (v) => mix(hex('#1E5C86'), hex('#5FA8D8'), clamp(v)), 1.2),

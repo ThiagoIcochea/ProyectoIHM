@@ -12,7 +12,7 @@ Escucha es una app anónima para adolescentes y jóvenes (12–21 años) que nec
 | 2 | Móvil y plegable | Chat en una mitad, respiración o diario en la otra | Plegable real con Chrome (Viewport Segments API); en móvil normal, pestañas o “Simular plegable” |
 | 3 | Voz | Conversación manos libres con la IA, respuestas habladas | Chrome/Edge/Safari; en Firefox o Quest transcribe con Whisper (Groq) |
 | 4 | IoT | Pulsera (simulada o real por Web Bluetooth), lámpara, parlante con sonido real y difusor. Automatización: pulso > 100 lpm por 5 s → escena calma + sugerencia de respirar | Subir “Simular estrés”, o conectar una banda con perfil Heart Rate BLE |
-| 5 | RV / RA | Santuario 3D con 6 mundos (bosque, playa, noche con fogata y aurora, montaña, espacio, jardín zen) con esfera de respiración, paneles clicables con mouse o controles | Meta Quest Browser → “Entrar al visor”. Android → botón AR. iPhone → “RA con cámara” |
+| 5 | RV / RA | Santuario 3D con 7 mundos (bosque, playa, noche, fogata, montaña, espacio, jardín zen) con terreno en relieve, agua animada por shader y fuego con partículas. RA con cámara: santuario o fogata texturizados. Salas por código con avatares que siguen el movimiento del dispositivo con esfera de respiración, paneles clicables con mouse o controles | Meta Quest Browser → “Entrar al visor”. Android → botón AR. iPhone → “RA con cámara” |
 | 6 | Mapa 3D | Centros de salud reales (OpenStreetMap/Overpass) a 3 km, edificios 3D, cómo llegar | Permitir ubicación; por defecto Lima centro |
 | 7 | Interfaces emergentes | Gestos con la cámara (MediaPipe): mano abierta = inhala, puño = exhala, pulgar = “me siento mejor”, índice 2 s = ayuda | Activar cámara; sin cámara, teclas P F T H |
 
@@ -21,6 +21,11 @@ Escucha es una app anónima para adolescentes y jóvenes (12–21 años) que nec
 - Las cuentas viven en el navegador (no hay servidor): sirven para separar los datos de quienes comparten un dispositivo, no para sincronizar entre dispositivos.
 - **Eliminar cuenta** (Perfil → Cuenta y datos): advertencia, alternativa de desactivar, motivo, confirmación con ELIMINAR + contraseña, 30 días de gracia y comprobante descargable.
 - **Mis dispositivos** (`/dispositivos`): vincula relojes o pulseras por Web Bluetooth y lee los servicios GATT estándar (frecuencia cardiaca, SpO₂, temperatura, presión, batería) y envía alertas o notificaciones si el equipo lo permite. Para relojes que no comparten esos servicios, Escucha envía notificaciones del sistema que el reloj emparejado refleja.
+
+## Salas y hogar conectado (WebRTC)
+- **Salas de autoayuda** (RV/RA): por defecto personales; con *Crear sala* se genera un código de 6 caracteres. Hasta 6 personas, avatares que siguen la orientación del teléfono o visor, gestos predefinidos (sin chat libre) y respiración sincronizada.
+- **Hogar conectado**: *Conectar dispositivos* genera un código; otros teléfonos, laptops o Smart TV abren `#/conectar` y actúan como **Pantalla/TV**, **Parlante** o **Luz**. También: *Transmitir a la TV* (Presentation API, Chromecast/Android TV) y *Sonido por otro parlante* (`setSinkId`).
+- Usa PeerJS con su servidor público gratuito para el enlace; los datos viajan directo entre dispositivos. Para un servidor propio: `VITE_PEER_HOST`, `VITE_PEER_PORT`, `VITE_PEER_PATH`.
 
 ## Navegación por voz
 - Botón de micrófono flotante o tecla **V**; **Manos libres** escucha siempre (opcional: palabra de activación “Escucha…”).

@@ -16,6 +16,7 @@ import Profile from './screens/Profile'
 import Account from './screens/Account'
 import DeleteAccount from './screens/DeleteAccount'
 import Devices from './screens/Devices'
+import Connect from './screens/Connect'
 import { purgeExpired } from './lib/auth'
 import Watch from './modalities/Watch'
 import Dual from './modalities/Dual'
@@ -64,12 +65,13 @@ export default function App() {
 
   return (
     <VoiceProvider>
-      {!onboarded && location.pathname !== '/bienvenida' && location.pathname !== '/cuenta' ? (
+      {!onboarded && location.pathname !== '/bienvenida' && location.pathname !== '/cuenta' && location.pathname !== '/conectar' ? (
         <Navigate to="/bienvenida" replace />
       ) : (
         <Routes>
           <Route path="/bienvenida" element={<Onboarding />} />
           <Route path="/cuenta" element={<Account />} />
+          <Route path="/conectar" element={<Connect />} />
           <Route element={<AppShell />}>
             <Route index element={<Home />} />
             <Route path="explorar" element={<Explore />} />

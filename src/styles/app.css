@@ -560,3 +560,26 @@ input[type='range'] { width: 100%; accent-color: var(--primary); height: 32px; }
   .composer { left: 0; right: 0; border-radius: 18px; padding: 6px; gap: 4px; }
   .composer .btn { min-height: 44px; }
 }
+
+/* ---------- Dispositivos conectados (TV, parlante, luz) ---------- */
+.connect-full { position: fixed; inset: 0; background: #05090E; color: #E7F1F8; overflow: hidden; }
+.connect-bar { position: fixed; top: calc(12px + env(safe-area-inset-top)); right: 12px; display: flex; gap: 8px; align-items: center; opacity: 0.35; transition: opacity 200ms ease; z-index: 5; }
+.connect-bar:hover, .connect-bar:focus-within { opacity: 1; }
+@media (hover: none) { .connect-bar { opacity: 0.8; } }
+.tv-view { position: absolute; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 120%, color-mix(in srgb, var(--glow) 35%, #05090E), #05090E 70%); transition: background 1.2s ease; }
+.tv-aurora { position: absolute; inset: -20%; background: conic-gradient(from 0deg at 50% 60%, transparent, color-mix(in srgb, var(--glow) 22%, transparent), transparent 40%, color-mix(in srgb, var(--glow) 16%, transparent), transparent 75%); filter: blur(60px); animation: aurora 40s linear infinite; }
+@keyframes aurora { to { transform: rotate(360deg); } }
+.tv-orb { width: min(46vh, 46vw); aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #FFFFFF, var(--glow) 55%, color-mix(in srgb, var(--glow) 40%, #05090E)); box-shadow: 0 0 120px color-mix(in srgb, var(--glow) 60%, transparent); transform: scale(0.6); transition: transform 4s var(--ease-in-out), background 1.2s ease; position: relative; }
+.tv-orb[data-phase='inhala'], .tv-orb[data-phase='sosten'] { transform: scale(1); }
+.tv-text { position: absolute; bottom: 18vh; display: flex; gap: 0.6em; align-items: baseline; font-size: clamp(2rem, 6vh, 4.5rem); font-weight: 650; letter-spacing: -0.02em; text-shadow: 0 2px 20px rgba(0,0,0,.5); }
+.tv-foot { position: absolute; bottom: 4vh; left: 5vw; right: 5vw; display: flex; justify-content: space-between; font-size: clamp(1rem, 2.4vh, 1.6rem); color: #A3BCCD; }
+.role-view { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 16px; text-align: center; padding: 24px; }
+.role-view .pulse { animation: speak 1.6s ease-in-out infinite; color: #7CC0F8; }
+.light-view { position: absolute; inset: 0; display: grid; place-items: center; transition: background-color 800ms ease, filter 800ms ease; }
+@media (max-width: 699px) {
+  .vr-overlay { flex-direction: column; align-items: stretch; flex-wrap: nowrap; }
+  .vr-overlay > .glass { max-width: none !important; padding: 8px 12px; }
+  .vr-overlay > .glass p { display: none; }
+  .vr-overlay > .row-wrap { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .vr-overlay > .row-wrap > * { flex: none; }
+}

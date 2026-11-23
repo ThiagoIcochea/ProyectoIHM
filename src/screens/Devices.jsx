@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bluetooth, BluetoothOff, HeartPulse, BatteryMedium, Thermometer, Activity, Droplet, Vibrate, BellRing, Send, Watch, AlertTriangle, CheckCircle2 } from 'lucide-react'
-import { useBle, connect, disconnect, buzz, sendWatchText, notify, supportsBLE, CAPS } from '../lib/ble'
+import { useBle, connect, disconnect, buzz, sendWatchText, notify, supportsBLE, CAPS, readRaw, subscribeRaw } from '../lib/ble'
 import { useVoiceCommands } from '../lib/voice'
 import { Notice, Segmented, HowTo, VoiceHints } from '../components/ui'
 import { toast } from '../components/Toast'
@@ -116,6 +116,37 @@ export default function Devices() {
         {b.vitals.bpm != null && <p className="muted small">El pulso también alimenta el reloj de Escucha y la automatización del <Link to="/m/iot">Hogar IoT</Link>.</p>}
       </section>
 
+      {b.services.length > 0 && (
+        <details className="card howto" open={b.caps.length === 0}>
+          <summary><Bluetooth size={18} /> Todo lo que expone este reloj ({b.services.length} servicios)</summary>
+          <div className="stack-sm">
+            <p className="muted small">Aquí ves cualquier reloj, aunque use un formato propio. Puedes leer valores o escuchar los que se actualizan solos (por ejemplo, el pulso). Los datos propietarios llegan en hexadecimal porque cada fabricante usa su propio formato.</p>
+            {b.services.map((svc) => (
+              <div key={svc.uuid} className="card stack-sm" style={{ padding: 12 }}>
+                <div className="row between" style={{ flexWrap: 'wrap' }}><b>{svc.label}</b><code className="muted small">{svc.uuid.slice(0, 8)}</code></div>
+                {svc.chars.length === 0 && <span className="muted small">Protegido por el fabricante.</span>}
+                {svc.chars.map((c) => (
+                  <div key={c.key} className="stack-sm" style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+                    <div className="row between" style={{ flexWrap: 'wrap', gap: 6 }}>
+                      <span className="small">{c.label} <code className="muted">{c.uuid.slice(0, 8)}</code></span>
+                      <span className="row" style={{ gap: 6 }}>
+                        {c.read && <button className="btn btn-sm" onClick={() => run(() => readRaw(c.key))}>Leer</button>}
+                        {c.notify && <button className="btn btn-sm" onClick={() => run(() => subscribeRaw(c.key))}>Escuchar</button>}
+                      </span>
+                    </div>
+                    {b.raw[c.key] && (
+                      <code className="small" style={{ overflowWrap: 'anywhere', color: b.raw[c.key].live ? 'var(--success)' : 'var(--ink)' }}>
+                        {b.raw[c.key].text ? `“${b.raw[c.key].text}” · ` : ''}{b.raw[c.key].hex}
+                      </code>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
       <section className="card stack">
         <div className="row"><span className="ico-tile"><BellRing size={22} /></span><h2>Avisos en tu muñeca</h2></div>
         <div className="field">
@@ -152,6 +183,7 @@ export default function Devices() {
           'Toca “Vincular reloj” y elige tu equipo en la lista del navegador. Mantén el reloj cerca y con Bluetooth activo.',
           'Lecturas compatibles: servicios estándar Bluetooth de frecuencia cardiaca, batería, temperatura, presión, oxímetro, alertas y notificaciones. Bandas de pecho como la Polar H10 los publican; algunos relojes también, si tienen una opción para transmitir la frecuencia cardiaca.',
           'Si el reloj ya está conectado al teléfono por su app oficial, puede que no aparezca: desconéctalo de esa app o activa su modo de transmisión.',
+          'Xiaomi, IMILAB (como el W11L), Amazfit y similares: se pueden vincular y explorar aquí, pero su pulso y pasos viajan en un formato propio que solo descifra la app oficial. Lo que sí funciona con ellos es recibir los avisos de Escucha, porque estos relojes muestran las notificaciones del teléfono.',
           'No pudimos probar con relojes reales: los datos dependen de lo que cada fabricante comparta.'
         ]}
       />
