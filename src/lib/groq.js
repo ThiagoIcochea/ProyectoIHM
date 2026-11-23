@@ -113,3 +113,30 @@ export function explainError(e) {
       : 'El navegador no pudo conectarse con Groq (sin internet o conexión bloqueada por el navegador). Si persiste, configura un proxy en Perfil → Inteligencia artificial.'
   return 'La IA no respondió. Usaré respuestas básicas mientras tanto.'
 }
+
+// Visión: describe una imagen y devuelve JSON (para crear personajes a partir de una foto o dibujo)
+export const VISION_MODELS = ['qwen/qwen3.8-27b', 'meta-llama/llama-4-scout-17b-16e-instruct']
+export async function visionJSON(prompt, dataUrl) {
+  let lastErr
+  for (const model of VISION_MODELS) {
+    for (const json of [true, false]) {
+      try {
+        const body = {
+          model,
+          temperature: 0.2,
+          max_tokens: 400,
+          messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }]
+        }
+        if (json) body.response_format = { type: 'json_object' }
+        const data = await post('/chat/completions', body)
+        const text = (data?.choices?.[0]?.message?.content || '').replace(/<think>[\s\S]*?<\/think>/g, '')
+        const m = text.match(/\{[\s\S]*\}/)
+        if (m) return JSON.parse(m[0])
+      } catch (e) {
+        lastErr = e
+        if (e.message === 'NO_KEY' || e.status === 401) throw e
+      }
+    }
+  }
+  throw lastErr || new Error('EMPTY')
+}

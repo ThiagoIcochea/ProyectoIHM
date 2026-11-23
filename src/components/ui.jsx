@@ -45,17 +45,21 @@ export function Notice({ tone = '', icon: Icon = Info, children }) {
 
 export function Sheet({ open, onClose, title, children, labelledBy = 'sheet-title' }) {
   const ref = useRef(null)
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  // Solo enfoca al abrir: si dependiera de onClose (que cambia en cada render) robaría el foco
+  // a los campos de texto y el teclado del móvil se cerraría al escribir.
   useEffect(() => {
     if (!open) return
     const prev = document.activeElement
-    ref.current?.focus()
-    const onKey = (e) => e.key === 'Escape' && onClose()
+    ref.current?.focus({ preventScroll: true })
+    const onKey = (e) => e.key === 'Escape' && closeRef.current?.()
     window.addEventListener('keydown', onKey)
     return () => {
       window.removeEventListener('keydown', onKey)
-      prev?.focus?.()
+      prev?.focus?.({ preventScroll: true })
     }
-  }, [open, onClose])
+  }, [open])
   if (!open) return null
   return (
     <div className="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>

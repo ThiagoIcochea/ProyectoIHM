@@ -3,6 +3,7 @@ import { useLocation, Link, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, KeyRound, CheckCircle2, AlertTriangle, Mic, Accessibility, UserRound, Database, LogIn, LogOut, UserPlus, Download, Trash2, Bluetooth, ChevronRight } from 'lucide-react'
 import { useAccount, logout, exportData, download } from '../lib/auth'
 import { Sheet } from '../components/ui'
+import AvatarEditor from '../components/AvatarEditor'
 import { resetAll, setState, useStore } from '../lib/store'
 import { testKey, explainError, hasKey } from '../lib/groq'
 import { supportsSR, supportsTTS, useVoice, spanishVoices, pickVoice, setVoiceFor } from '../lib/voice'
@@ -97,6 +98,12 @@ export default function Profile() {
           <label className="label" htmlFor="alias-in">Apodo que verás en la app</label>
           <input id="alias-in" className="input" value={s.alias} onChange={(e) => setState({ alias: e.target.value.slice(0, 24) })} placeholder="Sin apodo" />
         </div>
+      </section>
+
+      <section className="card stack" aria-labelledby="p-avatar" id="personaje">
+        <h2 id="p-avatar">Mi personaje</h2>
+        <p className="muted small">Así te verán en las salas compartidas de realidad virtual y aumentada.</p>
+        <AvatarEditor />
       </section>
 
       <Link to="/dispositivos" className="card card-link row">
