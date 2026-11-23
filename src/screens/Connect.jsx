@@ -147,11 +147,11 @@ export default function Connect() {
         </div>
         <div className="stack-sm">
           <h1>Conectar este dispositivo</h1>
-          <p className="muted">Convierte este teléfono, tablet, laptop o Smart TV en parte de tu espacio de calma. Escribe el código que aparece en el panel del Hogar conectado.</p>
+          <p className="muted">Convierte este teléfono, tablet, laptop o Smart TV en parte de tu espacio de calma. Escribe el código que aparece en el otro dispositivo, en Hogar conectado → Vincular.</p>
         </div>
         <div className="field">
           <label className="label" htmlFor="hub-code">Código</label>
-          <input id="hub-code" className="input tnum" value={code} maxLength={6} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="ABC234" autoCapitalize="characters" spellCheck={false} style={{ letterSpacing: '0.2em', fontSize: '1.3rem' }} />
+          <input id="hub-code" className="input tnum" inputMode="text" autoComplete="off" autoFocus value={code} maxLength={6} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="ABC234" autoCapitalize="characters" spellCheck={false} style={{ letterSpacing: '0.2em', fontSize: '1.3rem' }} />
         </div>
         <div className="stack-sm" role="radiogroup" aria-label="Qué hará este dispositivo">
           <span className="label">Este dispositivo será…</span>

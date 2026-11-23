@@ -30,6 +30,47 @@ let conns = [] // anfitrión: invitados; invitado: [anfitrión]
 let breathHandler = null
 export const onRemoteBreath = (fn) => (breathHandler = fn)
 
+// La sala sobrevive a recargar la página: se guarda el código y el rol en esta pestaña
+const SAVE_KEY = 'escucha.sala'
+const save = (v) => { try { v ? sessionStorage.setItem(SAVE_KEY, JSON.stringify(v)) : sessionStorage.removeItem(SAVE_KEY) } catch { /* nada */ } }
+const saved = () => { try { return JSON.parse(sessionStorage.getItem(SAVE_KEY) || 'null') } catch { return null } }
+const lastSeen = {}
+let leaving = false
+let heartbeat = null
+const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+
+function startHeartbeat() {
+  clearInterval(heartbeat)
+  heartbeat = setInterval(() => {
+    broadcast({ t: 'ping', id: st.me?.id })
+    const now = Date.now()
+    if (st.status === 'host') {
+      // Quien no da señales en 10 s (por ejemplo, recargó la página) sale de la sala
+      Object.keys(st.members).forEach((id) => {
+        if (now - (lastSeen[id] || now) > 10000) dropMember(id)
+      })
+    } else if (st.status === 'member' && now - (lastSeen.host || now) > 12000) {
+      reconnectAsMember()
+    }
+  }, 3000)
+}
+function dropMember(id) {
+  const members = { ...st.members }
+  if (!members[id]) return
+  delete members[id]
+  set({ members })
+  dropAudio(id)
+  conns.filter((c) => c.peer === id).forEach((c) => { conns = conns.filter((x) => x !== c); try { c.close() } catch { /* nada */ } })
+  const r = { t: 'roster', members: roster() }
+  conns.forEach((c) => c.open && c.send(r))
+}
+if (typeof window !== 'undefined') {
+  // Aviso inmediato al cerrar o recargar para que nadie vea un avatar "fantasma"
+  window.addEventListener('pagehide', () => {
+    try { conns.forEach((c) => c.open && c.send({ t: 'bye', id: st.me?.id })) } catch { /* nada */ }
+  })
+}
+
 const clean = (s, n = 24) => String(s || '').replace(/[<>"]/g, '').slice(0, n)
 function meInfo(id, idx = 0) {
   const alias = clean(getState().alias)
@@ -38,6 +79,12 @@ function meInfo(id, idx = 0) {
 
 function handle(msg, from) {
   if (!msg || typeof msg !== 'object') return
+  if (msg.id) lastSeen[msg.id] = Date.now()
+  if (st.status === 'member') lastSeen.host = Date.now()
+  if (msg.t === 'ping') {
+    if (st.status === 'host' && from) return
+    return
+  }
   const members = { ...st.members }
   const known = members[msg.id]
   switch (msg.t) {
@@ -69,6 +116,7 @@ function handle(msg, from) {
       if (st.status === 'member') set({ scene: { kind: msg.kind, arScene: msg.arScene, at: Date.now() } })
       break
     case 'bye':
+      if (st.status === 'host') { dropMember(msg.id); return }
       delete members[msg.id]
       set({ members })
       dropAudio(msg.id)
@@ -91,22 +139,27 @@ function listenCalls() {
   })
 }
 
-export async function createRoom() {
+export async function createRoom(fixedCode) {
   await leaveRoom()
   set({ status: 'connecting', error: '' })
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const code = randCode()
+  for (let attempt = 0; attempt < (fixedCode ? 8 : 3); attempt++) {
+    const code = fixedCode || randCode()
     try {
       peer = await makePeer(PREFIX + code)
       set({ status: 'host', code, me: meInfo(peer.id, 0), members: {}, scene: null })
+      save({ code, role: 'host' })
       listenCalls()
+      startHeartbeat()
       peer.on('connection', (conn) => {
         conn.on('open', () => {
           if (conns.length >= MAX - 1) { conn.send({ t: 'full' }); setTimeout(() => conn.close(), 300); return }
           conns.push(conn)
         })
         conn.on('data', (msg) => {
+          lastSeen[conn.peer] = Date.now()
           if (msg?.t === 'hello') {
+            // Si alguien vuelve tras recargar, se quita su conexión anterior
+            conns.filter((c) => c !== conn && c.peer === conn.peer).forEach((c) => c.close())
             const idx = conns.indexOf(conn) + 1
             const info = { id: conn.peer, name: clean(msg.name) || `Persona ${idx + 1}`, avatar: normalizeAvatar(msg.avatar) }
             set({ members: { ...st.members, [conn.peer]: info } })
@@ -135,18 +188,22 @@ export async function createRoom() {
       peer = null
       if (e?.type !== 'unavailable-id') {
         set({ status: 'solo', error: explainPeerError(e) })
+        save(null)
         throw e
       }
+      // Tras recargar, el servidor tarda unos segundos en liberar el código anterior
+      if (fixedCode) await wait(3000)
     }
   }
-  set({ status: 'solo', error: 'No se pudo crear la sala. Inténtalo otra vez.' })
+  set({ status: 'solo', error: fixedCode ? 'No se pudo recuperar la sala. Crea una nueva.' : 'No se pudo crear la sala. Inténtalo otra vez.' })
+  save(null)
 }
 
-export async function joinRoom(raw) {
+export async function joinRoom(raw, { quiet = false } = {}) {
   const code = String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
   if (code.length !== 6) return set({ error: 'El código tiene 6 letras o números.' })
-  await leaveRoom()
-  set({ status: 'connecting', error: '' })
+  await leaveRoom({ keepSaved: true })
+  set({ status: quiet ? 'reconnecting' : 'connecting', error: '' })
   try {
     peer = await makePeer()
     const conn = peer.connect(PREFIX + code, { reliable: true })
@@ -159,6 +216,9 @@ export async function joinRoom(raw) {
     listenCalls()
     const me = meInfo(peer.id, 1)
     set({ status: 'member', code, me, members: {}, scene: null })
+    save({ code, role: 'member' })
+    lastSeen.host = Date.now()
+    startHeartbeat()
     conn.send({ t: 'hello', name: me.name, avatar: me.avatar })
     conn.on('data', (msg) => {
       if (msg?.t === 'full') {
@@ -168,33 +228,56 @@ export async function joinRoom(raw) {
       }
       handle(msg)
     })
-    conn.on('close', () => {
-      if (st.status === 'member') {
-        stopTalking()
-        set({ status: 'solo', code: '', members: {}, error: 'La sala se cerró.' })
-        peer?.destroy()
-        peer = null
-        conns = []
-      }
-    })
+    conn.on('close', () => { if (st.status === 'member' && !leaving) reconnectAsMember() })
+    return true
   } catch (e) {
     peer?.destroy?.()
     peer = null
-    set({ status: 'solo', error: explainPeerError(e) })
+    if (!quiet) { set({ status: 'solo', error: explainPeerError(e) }); save(null) }
+    return false
   }
 }
 
-export async function leaveRoom() {
+// Si el anfitrión recarga la página, los invitados reintentan unirse al mismo código durante ~30 s
+let reconnecting = false
+async function reconnectAsMember() {
+  if (reconnecting) return
+  reconnecting = true
+  const code = st.code
+  stopTalking()
+  set({ status: 'reconnecting', members: {} })
+  for (let i = 0; i < 10 && reconnecting; i++) {
+    await wait(3000)
+    if (await joinRoom(code, { quiet: true })) { reconnecting = false; return }
+  }
+  reconnecting = false
+  save(null)
+  set({ status: 'solo', code: '', members: {}, error: 'Se perdió la conexión con la sala.' })
+}
+
+// Al abrir la pantalla tras recargar: vuelve a la sala en la que estabas
+export async function resumeRoom() {
+  const s0 = saved()
+  if (!s0 || st.status !== 'solo') return
+  if (s0.role === 'host') await createRoom(s0.code).catch(() => {})
+  else await joinRoom(s0.code, { quiet: true }).then((ok) => { if (!ok) reconnectAsMember() })
+}
+
+export async function leaveRoom({ keepSaved = false } = {}) {
+  if (!keepSaved) { save(null); reconnecting = false }
+  clearInterval(heartbeat)
+  leaving = true
   stopTalking()
   Object.keys(audios).forEach(dropAudio)
   lastScene = null
-  if (!peer) return set({ status: 'solo', code: '', members: {}, scene: null })
+  if (!peer) { leaving = false; return set({ status: keepSaved ? st.status : 'solo', code: keepSaved ? st.code : '', members: {}, scene: null }) }
   try { conns.forEach((c) => c.open && c.send({ t: 'bye', id: st.me?.id })) } catch { /* nada */ }
   await new Promise((r) => setTimeout(r, 120))
   conns.forEach((c) => c.close())
   conns = []
   peer.destroy()
   peer = null
+  leaving = false
   set({ status: 'solo', code: '', members: {}, scene: null })
 }
 

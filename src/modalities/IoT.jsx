@@ -221,6 +221,7 @@ export default function IoT() {
         <div className="row-wrap">
           <button className="btn btn-primary" onClick={() => calmScene()}><Wind size={18} /> Escena calma</button>
           <button className="btn" onClick={allOff}><Power size={18} /> Apagar todo</button>
+          <button className="btn" onClick={() => navigate('/conectar')}><Smartphone size={18} /> Tengo un código</button>
         </div>
       </div>
 
@@ -328,7 +329,7 @@ export default function IoT() {
               <p className="muted">{hub.status === 'connecting' ? 'Creando código…' : 'Preparando…'}</p>
             ) : (
               <>
-                <p className="muted">En el otro dispositivo abre este enlace, o entra a <b>{location.host}{location.pathname}#/conectar</b> y escribe el código.</p>
+                <p className="muted">En el otro dispositivo abre este enlace. O abre Escucha allí, entra a <b>Hogar conectado → Tengo un código</b> y escríbelo.</p>
                 <div className="card tnum" style={{ textAlign: 'center', fontSize: '1.8rem', fontWeight: 750, letterSpacing: '0.2em' }}>{hub.code}</div>
                 <div className="row-wrap">
                   <button className="btn btn-primary" onClick={() => shareLink(linkRole)}><Share2 size={18} /> Compartir enlace</button>

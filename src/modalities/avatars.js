@@ -117,36 +117,6 @@ function hair3D(a) {
   }
 }
 
-function face3D(a) {
-  const brow = a.brows === 'gruesas' ? 0.022 : 0.012
-  const browRot = a.expression === 'alegre' ? 10 : a.expression === 'tranquila' ? -4 : 4
-  let mouth
-  if (a.expression === 'alegre') mouth = `<a-circle radius="0.045" theta-start="180" theta-length="180" position="0 -0.06 -0.18" material="color: #7A2E28; side: double"></a-circle><a-box width="0.06" height="0.012" depth="0.005" position="0 -0.064 -0.182" material="color: #FFFFFF"></a-box>`
-  else if (a.expression === 'tranquila') mouth = `<a-box width="0.06" height="0.01" depth="0.01" position="0 -0.065 -0.178" material="color: #8A3B32"></a-box>`
-  else mouth = `<a-torus radius="0.042" radius-tubular="0.007" arc="180" rotation="0 0 180" position="0 -0.05 -0.172" material="color: #8A3B32"></a-torus>`
-  const eye = (x) => `
-    <a-sphere radius="0.03" scale="1 0.85 0.6" position="${x} 0.025 -0.164" material="color: #FFFFFF; roughness: 0.3"></a-sphere>
-    <a-sphere radius="0.017" position="${x} 0.024 -0.178" material="color: ${a.eyes}; roughness: 0.2"></a-sphere>
-    <a-sphere radius="0.009" position="${x} 0.024 -0.191" material="color: #0A0A0A"></a-sphere>
-    <a-sphere radius="0.005" position="${n3(Number(x) + 0.007)} 0.032 -0.197" material="shader: flat; color: #FFFFFF"></a-sphere>`
-  let facial = ''
-  const fc = `color: ${a.hairColor}; roughness: 1`
-  if (a.facial === 'bigote' || a.facial === 'candado') facial += `<a-box width="0.1" height="0.022" depth="0.02" position="0 -0.035 -0.183" material="${fc}"></a-box>`
-  if (a.facial === 'candado') facial += `<a-sphere radius="0.05" scale="1 0.8 0.8" position="0 -0.14 -0.13" material="${fc}"></a-sphere>`
-  if (a.facial === 'barba') facial += `<a-sphere radius="0.1" scale="1.45 0.9 1" position="0 -0.11 -0.08" material="${fc}"></a-sphere><a-box width="0.1" height="0.022" depth="0.02" position="0 -0.035 -0.183" material="${fc}"></a-box>`
-  return `
-    <a-sphere radius="0.19" scale="1 1.08 1" material="color: ${a.skin}; roughness: 0.55"></a-sphere>
-    <a-sphere radius="0.045" scale="0.5 1 0.8" position="-0.185 0 0.01" material="color: ${a.skin}"></a-sphere>
-    <a-sphere radius="0.045" scale="0.5 1 0.8" position="0.185 0 0.01" material="color: ${a.skin}"></a-sphere>
-    ${eye('-0.065')}${eye('0.065')}
-    <a-box width="0.07" height="${brow}" depth="0.01" position="-0.065 0.075 -0.176" rotation="0 0 ${browRot}" material="color: ${shade(a.hairColor, 0.9)}"></a-box>
-    <a-box width="0.07" height="${brow}" depth="0.01" position="0.065 0.075 -0.176" rotation="0 0 ${-browRot}" material="color: ${shade(a.hairColor, 0.9)}"></a-box>
-    <a-sphere radius="0.022" scale="1 1.1 1" position="0 -0.012 -0.19" material="color: ${shade(a.skin, 0.93)}"></a-sphere>
-    <a-entity class="mouth">${mouth}</a-entity>
-    <a-sphere radius="0.03" position="-0.11 -0.03 -0.15" material="color: #F2A3A3; opacity: ${a.body === 'mujer' ? 0.45 : 0.18}; transparent: true"></a-sphere>
-    <a-sphere radius="0.03" position="0.11 -0.03 -0.15" material="color: #F2A3A3; opacity: ${a.body === 'mujer' ? 0.45 : 0.18}; transparent: true"></a-sphere>
-    ${facial}`
-}
 
 function headAcc3D(a) {
   let o = ''
@@ -171,66 +141,31 @@ function headAcc3D(a) {
   return o
 }
 
-function body3D(a) {
+
+// Detalles de ropa y accesorios del cuerpo (se suman a la base de avatar3d.js)
+function bodyExtras(a) {
   const woman = a.body === 'mujer'
-  const bx = { delgado: 0.88, medio: 1, robusto: 1.18 }[a.build]
-  const skin = `color: ${a.skin}; roughness: 0.6`
-  const top = `color: ${a.outfit}; roughness: 0.75`
-  const dark = shade(a.outfit, 0.72)
-  const pants = `color: ${a.pants}; roughness: 0.85`
-  const shoe = `color: ${a.shoes}; roughness: 0.6`
-  const shoulder = (woman ? 0.2 : 0.25) * bx
-  const dress = a.top === 'vestido'
-  const longSleeve = ['camisa', 'casaca', 'poleron'].includes(a.top)
-  let o = ''
-  // piernas y zapatillas
-  ;[-1, 1].forEach((sd) => {
-    const x = n3(sd * 0.09 * bx)
-    o += `<a-cylinder radius="${n3(0.065 * bx)}" radius-top="${n3(0.075 * bx)}" height="0.56" position="${x} 0.33 0" material="${dress ? skin : pants}"></a-cylinder>`
-    o += `<a-box width="0.11" height="0.07" depth="0.2" position="${x} 0.035 -0.02" material="${shoe}"></a-box><a-sphere radius="0.055" scale="1 0.65 1" position="${x} 0.04 -0.11" material="${shoe}"></a-sphere><a-box width="0.112" height="0.02" depth="0.202" position="${x} 0.01 -0.02" material="color: #F4F4F4"></a-box>`
-  })
-  // torso según prenda
-  const torsoW = (woman ? 0.15 : 0.17) * bx
-  const chestW = (woman ? 0.17 : 0.23) * bx
-  if (dress) {
-    o += `<a-cylinder radius="${n3(0.15 * bx)}" radius-top="${n3(0.17 * bx)}" height="0.34" position="0 1.0 0" material="${top}"></a-cylinder><a-cone radius-bottom="${n3(0.3 * bx)}" radius-top="${n3(0.15 * bx)}" height="0.42" position="0 0.62 0" material="${top}"></a-cone><a-torus radius="${n3(0.152 * bx)}" radius-tubular="0.012" rotation="90 0 0" position="0 0.84 0" material="color: ${dark}"></a-torus>`
-  } else {
-    o += `<a-cylinder radius="${n3(torsoW)}" radius-top="${n3(chestW)}" height="0.5" position="0 0.93 0" material="${top}"></a-cylinder>`
-    o += `<a-cylinder radius="${n3(0.165 * bx)}" height="0.14" position="0 0.64 0" material="${pants}"></a-cylinder><a-torus radius="${n3(0.166 * bx)}" radius-tubular="0.01" rotation="90 0 0" position="0 0.7 0" material="color: #3A2E26"></a-torus>`
-  }
-  if (a.top === 'camisa') o += `<a-box width="0.07" height="0.05" depth="0.02" position="-0.04 1.16 ${n3(-chestW + 0.01)}" rotation="0 0 -30" material="color: ${dark}"></a-box><a-box width="0.07" height="0.05" depth="0.02" position="0.04 1.16 ${n3(-chestW + 0.01)}" rotation="0 0 30" material="color: ${dark}"></a-box>${[1.08, 0.98, 0.88, 0.78].map((y) => `<a-sphere radius="0.01" position="0 ${y} ${n3(-(torsoW + (chestW - torsoW) * ((y - 0.68) / 0.5)) - 0.003)}" material="color: #F4F4F4"></a-sphere>`).join('')}`
-  if (a.top === 'casaca') o += `<a-box width="0.05" height="0.48" depth="0.02" position="0 0.93 ${n3(-(torsoW + chestW) / 2 - 0.005)}" material="color: ${dark}"></a-box><a-torus radius="0.075" radius-tubular="0.025" rotation="90 0 0" position="0 1.18 0" material="color: ${dark}"></a-torus>`
-  if (a.top === 'poleron') o += `<a-sphere radius="0.15" scale="1.1 0.8 0.7" position="0 1.2 0.13" material="${top}"></a-sphere><a-box width="0.2" height="0.1" depth="0.02" position="0 0.8 ${n3(-torsoW - 0.02)}" material="color: ${dark}"></a-box><a-cylinder radius="0.005" height="0.12" position="-0.03 1.08 ${n3(-chestW)}" material="color: #F4F4F4"></a-cylinder><a-cylinder radius="0.005" height="0.12" position="0.03 1.08 ${n3(-chestW)}" material="color: #F4F4F4"></a-cylinder>`
-  if (a.top === 'poncho') {
-    const rb = 0.4 * bx
-    const rt = 0.09
-    const y0 = 0.72
-    const hgt = 0.46
-    const rAt = (y) => rb + (rt - rb) * ((y - y0) / hgt)
-    o += `<a-cone radius-bottom="${n3(rb)}" radius-top="${rt}" height="${hgt}" position="0 ${n3(y0 + hgt / 2)} 0" material="${top}"></a-cone>`
-    ;[['#F4F1EA', 0.76], ['#E0A43A', 0.81], [dark, 0.86], ['#F4F1EA', 0.91]].forEach(([col, y]) => {
-      o += `<a-cone radius-bottom="${n3(rAt(y) + 0.004)}" radius-top="${n3(rAt(y + 0.025) + 0.004)}" height="0.025" position="0 ${n3(y + 0.0125)} 0" open-ended="true" material="color: ${col}; side: double"></a-cone>`
-    })
-  }
-  // brazos
-  if (a.top !== 'poncho') {
-    ;[-1, 1].forEach((sd) => {
-      const x = sd * (shoulder + 0.04)
-      o += `<a-sphere radius="${n3(0.07 * bx)}" position="${n3(sd * shoulder)} 1.13 0" material="${top}"></a-sphere>`
-      o += `<a-cylinder radius="${n3(0.052 * bx)}" height="0.28" position="${n3(x)} 1.0 0" rotation="0 0 ${sd * -8}" material="${top}"></a-cylinder>`
-      o += `<a-cylinder radius="${n3(0.045 * bx)}" height="0.26" position="${n3(x + sd * 0.02)} 0.76 -0.02" rotation="10 0 ${sd * -4}" material="${longSleeve ? top : skin}"></a-cylinder>`
-      o += `<a-sphere radius="0.05" scale="0.9 1.15 0.7" position="${n3(x + sd * 0.025)} 0.6 -0.04" material="${skin}"></a-sphere>`
-    })
-  } else {
-    ;[-1, 1].forEach((sd) => { o += `<a-sphere radius="0.05" scale="0.9 1.15 0.7" position="${n3(sd * 0.3 * bx)} 0.72 -0.06" material="${skin}"></a-sphere>` })
-  }
-  o += `<a-cylinder radius="0.055" height="0.12" position="0 1.2 0" material="${skin}"></a-cylinder>`
-  // accesorios del cuerpo
+  const bx = { delgado: 0.88, medio: 1, robusto: 1.17 }[a.build]
+  const chestZ = -(woman ? 0.165 : 0.185) * bx * 0.74
+  const dark = shade(a.outfit, 0.7)
   const has = (k) => a.accessories.includes(k)
-  if (has('collar')) o += `<a-torus radius="0.08" radius-tubular="0.007" rotation="75 0 0" position="0 1.16 -0.02" material="color: #E8C15A; metalness: 0.8; roughness: 0.25"></a-torus><a-sphere radius="0.018" position="0 1.08 -0.09" material="color: #3FA7A3; metalness: 0.3"></a-sphere>`
-  if (has('bufanda')) o += `<a-torus radius="0.09" radius-tubular="0.045" rotation="90 0 0" position="0 1.19 0" material="color: #C0392B; roughness: 1"></a-torus><a-box width="0.08" height="0.24" depth="0.04" position="0.06 1.04 -0.13" rotation="0 0 -8" material="color: #C0392B; roughness: 1"></a-box><a-box width="0.082" height="0.02" depth="0.042" position="0.068 0.93 -0.13" material="color: #F4F1EA"></a-box>`
-  if (has('mochila')) o += `<a-box width="0.3" height="0.36" depth="0.14" position="0 0.95 ${n3(chestW + 0.06)}" material="color: #2B3A45; roughness: 0.8"></a-box><a-box width="0.26" height="0.14" depth="0.04" position="0 0.86 ${n3(chestW + 0.14)}" material="color: #E0A43A"></a-box><a-box width="0.03" height="0.4" depth="0.02" position="-0.1 0.97 ${n3(-chestW + 0.01)}" material="color: #2B3A45"></a-box><a-box width="0.03" height="0.4" depth="0.02" position="0.1 0.97 ${n3(-chestW + 0.01)}" material="color: #2B3A45"></a-box>`
-  if (has('reloj')) o += `<a-cylinder radius="0.05" height="0.03" position="${n3(-(shoulder + 0.065))} 0.66 -0.03" material="color: #1B1B1B"></a-cylinder><a-circle radius="0.025" rotation="0 -90 0" position="${n3(-(shoulder + 0.105))} 0.66 -0.03" material="shader: flat; color: #7CC0F8"></a-circle>`
+  let o = ''
+  if (a.top === 'camisa') o += `<a-box width="0.07" height="0.05" depth="0.015" position="-0.04 1.17 ${n3(chestZ * 0.62)}" rotation="0 0 -32" material="color: ${dark}"></a-box><a-box width="0.07" height="0.05" depth="0.015" position="0.04 1.17 ${n3(chestZ * 0.62)}" rotation="0 0 32" material="color: ${dark}"></a-box>${[1.08, 0.99, 0.9].map((y) => `<a-sphere radius="0.008" position="0 ${y} ${n3(chestZ - 0.003)}" material="color: #F4F4F4"></a-sphere>`).join('')}`
+  if (a.top === 'casaca') o += `<a-box width="0.03" height="0.42" depth="0.01" position="0 0.96 ${n3(chestZ - 0.002)}" material="color: ${dark}"></a-box><a-torus radius="0.07" radius-tubular="0.022" rotation="90 0 0" position="0 1.2 0" material="color: ${dark}"></a-torus>`
+  if (a.top === 'poleron') o += `<a-sphere radius="0.14" scale="1.15 0.75 0.75" position="0 1.21 0.11" material="color: ${a.outfit}; roughness: 0.85"></a-sphere><a-box width="0.18" height="0.09" depth="0.012" position="0 0.84 ${n3(chestZ * 0.86 - 0.004)}" material="color: ${dark}"></a-box><a-cylinder radius="0.004" height="0.1" position="-0.03 1.1 ${n3(chestZ - 0.002)}" material="color: #F4F4F4"></a-cylinder><a-cylinder radius="0.004" height="0.1" position="0.03 1.1 ${n3(chestZ - 0.002)}" material="color: #F4F4F4"></a-cylinder>`
+  if (has('collar')) o += `<a-torus radius="0.075" radius-tubular="0.006" rotation="75 0 0" position="0 1.18 -0.02" material="color: #E8C15A; metalness: 0.8; roughness: 0.25"></a-torus><a-sphere radius="0.016" position="0 1.1 ${n3(chestZ * 0.75)}" material="color: #3FA7A3; metalness: 0.3"></a-sphere>`
+  if (has('bufanda')) o += `<a-torus radius="0.085" radius-tubular="0.04" rotation="90 0 0" position="0 1.21 0" material="color: #C0392B; roughness: 1"></a-torus><a-box width="0.075" height="0.22" depth="0.035" position="0.06 1.06 ${n3(chestZ - 0.02)}" rotation="0 0 -8" material="color: #C0392B; roughness: 1"></a-box><a-box width="0.077" height="0.02" depth="0.037" position="0.068 0.96 ${n3(chestZ - 0.02)}" material="color: #F4F1EA"></a-box>`
+  if (has('mochila')) o += `<a-box width="0.28" height="0.34" depth="0.13" position="0 0.98 ${n3(-chestZ + 0.07)}" material="color: #2B3A45; roughness: 0.8"></a-box><a-box width="0.24" height="0.13" depth="0.04" position="0 0.88 ${n3(-chestZ + 0.15)}" material="color: #E0A43A"></a-box><a-box width="0.028" height="0.36" depth="0.015" position="-0.1 1.0 ${n3(chestZ - 0.004)}" material="color: #2B3A45"></a-box><a-box width="0.028" height="0.36" depth="0.015" position="0.1 1.0 ${n3(chestZ - 0.004)}" material="color: #2B3A45"></a-box>`
+  if (has('reloj')) { const x = -((woman ? 0.18 : 0.215) * bx - 0.02 + 0.06); o += `<a-cylinder radius="0.047" height="0.028" position="${n3(x)} 0.66 -0.045" material="color: #1B1B1B"></a-cylinder><a-circle radius="0.024" rotation="0 -90 0" position="${n3(x - 0.048)} 0.66 -0.045" material="shader: flat; color: #7CC0F8"></a-circle>` }
+  return o
+}
+
+function facialHair(a) {
+  const fc = `color: ${a.hairColor}; roughness: 1`
+  let o = ''
+  if (a.facial === 'bigote' || a.facial === 'candado' || a.facial === 'barba') o += `<a-box width="0.1" height="0.02" depth="0.02" position="0 -0.045 -0.185" material="${fc}"></a-box>`
+  if (a.facial === 'candado') o += `<a-sphere radius="0.05" scale="1 0.8 0.8" position="0 -0.15 -0.13" material="${fc}"></a-sphere>`
+  if (a.facial === 'barba') o += `<a-sphere radius="0.1" scale="1.4 0.85 1" position="0 -0.12 -0.08" material="${fc}"></a-sphere>`
   return o
 }
 
@@ -238,16 +173,18 @@ function body3D(a) {
 export function avatarHTML(av, name = '') {
   const a = normalizeAvatar(av)
   const hy = { baja: 0.92, media: 1, alta: 1.08 }[a.height]
+  const json = JSON.stringify(a).replace(/"/g, '&quot;')
   return `<a-entity scale="${hy} ${hy} ${hy}">
-    ${body3D(a)}
-    <a-entity class="head" position="0 1.42 0" avatar-head>
-      ${face3D(a)}
+    <a-entity class="body" avatar-body="${json}">${bodyExtras(a)}</a-entity>
+    <a-entity class="head" position="0 1.43 0" avatar-head>
+      <a-entity class="face" avatar-face="${json}"></a-entity>
+      ${facialHair(a)}
       ${hair3D(a)}
       ${headAcc3D(a)}
     </a-entity>
     <a-ring class="talk" radius-inner="0.34" radius-outer="0.38" rotation="-90 0 0" position="0 0.02 0" visible="false" material="shader: flat; color: #6FD3A0" animation="property: scale; from: 1 1 1; to: 1.2 1.2 1.2; dir: alternate; loop: true; dur: 500"></a-ring>
-    <a-text class="name" value="${String(name).replace(/["<>]/g, '')}" align="center" width="2.2" color="#FFFFFF" position="0 1.92 0" rotation="0 180 0"></a-text>
-    <a-text class="bubble" value="" align="center" width="2.4" color="${a.outfit}" position="0 2.12 0" rotation="0 180 0"></a-text>
+    <a-text class="name" value="${String(name).replace(/["<>]/g, '')}" align="center" width="2.2" color="#FFFFFF" position="0 1.95 0" rotation="0 180 0"></a-text>
+    <a-text class="bubble" value="" align="center" width="2.4" color="${a.outfit}" position="0 2.15 0" rotation="0 180 0"></a-text>
   </a-entity>`
 }
 

@@ -2,11 +2,13 @@
 // iluminación por entorno (reflejos), giroscopio suavizado y avatares de la sala.
 import { TEXTURES } from './textures'
 import { terrainHeight, terrainNoise } from './terrainMath'
+import { registerAvatar } from './avatar3d'
 
 export function registerXR() {
   const A = window.AFRAME
   if (!A || A.components['water-surface']) return
   const THREE = A.THREE
+  registerAvatar(A)
 
   // ---------- Iluminación realista: mapa de entorno + tone mapping ----------
   A.registerComponent('env-light', {

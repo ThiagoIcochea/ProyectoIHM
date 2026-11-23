@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Trees, Waves, Moon, Mountain, Orbit, Flower2, Play, Square, Camera, Glasses, Volume2, VolumeX, Smartphone, Hand, LocateFixed, Flame, Users, Copy, LogOut, Share2, Mic, MicOff, UserRound, Eye, EyeOff, Menu, Shapes } from 'lucide-react'
-import { WORLDS, buildWorld, skyTexture, breathParticles, terrainAttr, envAttr, arSanctuary, arFogata } from './vrWorlds'
+import { WORLDS, buildWorld, skyTexture, breathParticles, terrainAttr, envAttr, arSanctuary, arDiorama } from './vrWorlds'
 import { registerXR } from './xr'
-import { useRoom, createRoom, joinRoom, leaveRoom, sendPose, sendReaction, sendBreath, onRemoteBreath, REACTIONS, sendAvatar, sendScene, startTalking, stopTalking, listAudioDevices, setVoiceOutput } from '../lib/rooms'
+import { useRoom, createRoom, joinRoom, leaveRoom, resumeRoom, sendPose, sendReaction, sendBreath, onRemoteBreath, REACTIONS, sendAvatar, sendScene, startTalking, stopTalking, listAudioDevices, setVoiceOutput } from '../lib/rooms'
 import { avatarHTML } from './avatars'
 import { useStore } from '../lib/store'
 import AvatarEditor from '../components/AvatarEditor'
@@ -40,10 +40,8 @@ function cameraHTML(motion) {
 }
 
 // Escena de RA sobre la cámara (funciona también en iPhone): fondo transparente, iluminación por entorno y texturas reales
-function arCameraHTML(motion, arScene) {
-  const piece = arScene === 'fogata'
-    ? arFogata('cam-sanctuary', 'position="0 0.75 -1.7"')
-    : arSanctuary('cam-sanctuary', 'position="0 0.9 -1.7" rotation="10 0 0"')
+function arCameraHTML(motion, kind) {
+  const piece = arDiorama(kind, 'cam-sanctuary', kind === 'fogata' ? 'position="0 0.75 -1.7"' : 'position="0 0.9 -1.7" rotation="10 0 0"')
   return `
   <a-scene embedded vr-mode-ui="enabled: false" xr-mode-ui="enabled: false" renderer="alpha: true; antialias: true; colorManagement: true"
     background="transparent: true" loading-screen="enabled: false" device-orientation-permission-ui="enabled: false" cursor="rayOrigin: mouse" raycaster="objects: .clickable"
@@ -52,8 +50,8 @@ function arCameraHTML(motion, arScene) {
     <a-entity light="type: hemisphere; color: #FFFFFF; groundColor: #6E604F; intensity: 0.65"></a-entity>
     <a-entity light="type: directional; intensity: 1.25; color: #FFF1DC" position="1.5 3 2"></a-entity>
     ${piece}
-    ${viscachaHTML('wayra', `class="clickable" position="0.78 ${arScene === 'fogata' ? 0.55 : 0.62} -1.5" rotation="0 153 0" scale="0.7 0.7 0.7"`)}
-    <a-entity id="avatars" position="0 ${arScene === 'fogata' ? 0.75 : 0.9} -1.7"></a-entity>
+    ${viscachaHTML('wayra', 'class="clickable" position="0.82 0.6 -1.5" rotation="0 153 0" scale="0.7 0.7 0.7"')}
+    <a-entity id="avatars" position="0 0.85 -1.7"></a-entity>
     <a-entity id="guide">
     <a-text id="ar-phase" value="Mira la esfera y respira" align="center" color="#FFFFFF" width="2.4" position="0 1.78 -1.8"></a-text>
     <a-text id="ar-count" value="" align="center" color="#FFFFFF" width="4" position="0 1.56 -1.8"></a-text>
@@ -110,9 +108,11 @@ export default function Immersive() {
   const host = useRef(null)
   const [ready, setReady] = useState(false)
   const [err, setErr] = useState('')
-  const [kind, setKind] = useState('bosque')
+  const [kind, setKind] = useState(() => {
+    try { const k = sessionStorage.getItem('escucha.mundo'); return k && WORLDS[k] ? k : 'bosque' } catch { return 'bosque' }
+  })
+  useEffect(() => { try { sessionStorage.setItem('escucha.mundo', kind) } catch { /* nada */ } }, [kind])
   const [mode, setMode] = useState('vr') // vr | camara
-  const [arScene, setArScene] = useState('santuario') // santuario | fogata
   const [roomOpen, setRoomOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [hudVisible, setHudVisible] = useState(true)
@@ -172,7 +172,7 @@ export default function Immersive() {
       .then(() => {
         if (!alive || !host.current) return
         registerXR()
-        host.current.innerHTML = mode === 'vr' ? sceneHTML(kindRef.current, motionRef.current) : arCameraHTML(motionRef.current, arScene)
+        host.current.innerHTML = mode === 'vr' ? sceneHTML(kindRef.current, motionRef.current) : arCameraHTML(motionRef.current, kindRef.current)
         const root = host.current
         const sc = root.querySelector('a-scene')
         // En RA con WebXR se muestra el mini santuario texturizado; toca una superficie para colocarlo
@@ -193,7 +193,19 @@ export default function Immersive() {
       setReady(false)
       if (host.current) host.current.innerHTML = ''
     }
-  }, [mode, arScene])
+  }, [mode])
+
+  // En RA con cámara, el diorama cambia con el mundo elegido (también cuando lo cambia el anfitrión)
+  useEffect(() => {
+    const root = host.current
+    if (!ready || !root || mode !== 'camara') return
+    const old = root.querySelector('#cam-sanctuary')
+    if (!old || old.dataset.kind === kind) return
+    const html = arDiorama(kind, 'cam-sanctuary', kind === 'fogata' ? 'position="0 0.75 -1.7"' : 'position="0 0.9 -1.7" rotation="10 0 0"')
+    old.insertAdjacentHTML('afterend', html)
+    old.remove()
+    root.querySelector('#cam-sanctuary').dataset.kind = kind
+  }, [kind, ready, mode])
 
   // Cambiar de escena sin recrear el mundo (no te saca del visor)
   useEffect(() => {
@@ -236,6 +248,9 @@ export default function Immersive() {
     setMotion(!motion)
   }
   const recenter = () => host.current?.querySelector('a-scene')?.emit('recenter')
+
+  // Si recargaste la página estando en una sala, vuelves a ella
+  useEffect(() => { resumeRoom() }, [])
 
   // ---------- Sala compartida: avatares que siguen la orientación de cada dispositivo ----------
   useEffect(() => {
@@ -288,7 +303,7 @@ export default function Immersive() {
       if (m.q && head?.components?.['avatar-head']) head.components['avatar-head'].setPose(m.q)
       el.querySelector('.bubble')?.setAttribute('value', m.react && Date.now() - (m.reactAt || 0) < 4500 ? REACTIONS[m.react] : '')
       el.querySelector('.talk')?.setAttribute('visible', !!m.talking)
-      el.querySelector('.mouth')?.setAttribute('animation', m.talking ? 'property: scale; from: 1 1 1; to: 1.3 2.2 1; dir: alternate; loop: true; dur: 180' : 'property: scale; to: 1 1 1; dur: 100')
+      el.querySelector('.face')?.components?.['avatar-face']?.setTalking(!!m.talking)
       if (m.breath) el.setAttribute('animation', `property: scale; from: ${SCALE} ${SCALE} ${SCALE}; to: ${SCALE * 1.04} ${SCALE * 1.03} ${SCALE * 1.04}; dir: alternate; loop: true; dur: 4000; easing: easeInOutSine`)
       else el.removeAttribute('animation')
     })
@@ -300,17 +315,13 @@ export default function Immersive() {
     if (isMember) return toast('En esta sala, el anfitrión elige el escenario.')
     setKind(k)
   }
-  const chooseAr = (k) => {
-    if (isMember) return toast('En esta sala, el anfitrión elige el escenario.')
-    setArScene(k)
-  }
   useEffect(() => {
-    if (room.status === 'host') sendScene(kind, arScene)
-  }, [room.status, kind, arScene, Object.keys(room.members).length]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (room.status === 'host') sendScene(kind, kind)
+  }, [room.status, kind, Object.keys(room.members).length]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (room.status !== 'member' || !room.scene) return
     if (room.scene.kind && SCENES[room.scene.kind]) setKind(room.scene.kind)
-    if (room.scene.arScene) setArScene(room.scene.arScene)
+    toast(`El anfitrión cambió a ${SCENES[room.scene.kind]?.label || 'otro lugar'}`)
   }, [room.scene, room.status])
 
   // Mi personaje: se envía a la sala cuando cambia
@@ -391,9 +402,9 @@ export default function Immersive() {
 
   // Sonido de la escena
   useEffect(() => {
-    if (audio) playAmbient(mode === 'camara' ? (arScene === 'fogata' ? 'fogata' : 'lluvia') : SCENES[kind].sound, 0.4)
+    if (audio) playAmbient(SCENES[kind].sound, 0.4)
     else stopAmbient()
-  }, [audio, kind, mode, arScene])
+  }, [audio, kind, mode])
   useEffect(() => () => stopAmbient(), [])
 
   // Respaldo de RA con la cámara del móvil (sirve también en iPhone, que no tiene WebXR)
@@ -420,7 +431,7 @@ export default function Immersive() {
     root.querySelector('#ui3d')?.setAttribute('visible', hudVisible)
     root.querySelectorAll('#ui3d > a-entity').forEach((el) => el.classList.toggle('clickable', hudVisible))
     root.querySelectorAll('[raycaster]').forEach((r) => r.components?.raycaster?.refreshObjects?.())
-  }, [guideVisible, hudVisible, ready, mode, arScene])
+  }, [guideVisible, hudVisible, ready, mode, kind])
   useEffect(() => { if (b.started) setGuideVisible(true) }, [b.started])
 
   const enterAR = () => host.current?.querySelector('a-scene')?.enterAR?.()
@@ -434,8 +445,8 @@ export default function Immersive() {
   useVoiceCommands(
     'immersive',
     [
-      { re: /\b(fogata|fuego)\b/, label: 'fogata', run: () => (mode === 'camara' ? chooseAr('fogata') : chooseKind('fogata')), say: 'Vamos a la fogata.' },
-      { re: /\b(santuario)\b/, label: 'santuario', run: () => (mode === 'camara' ? chooseAr('santuario') : chooseKind('bosque')) },
+      { re: /\b(fogata|fuego)\b/, label: 'fogata', run: () => chooseKind('fogata'), say: 'Vamos a la fogata.' },
+      { re: /\b(santuario)\b/, label: 'santuario', run: () => chooseKind('bosque') },
       { re: /\b(bosque|playa|noche|montana|espacio|jardin)\b/, label: 'bosque, playa, noche, montaña, espacio o jardín', run: (m) => { setMode('vr'); chooseKind(m[1]) }, say: (m) => `Vamos ${{ bosque: 'al bosque', playa: 'a la playa', noche: 'a la noche', montana: 'a la montaña', espacio: 'al espacio', jardin: 'al jardín zen' }[m[1]]}.` },
       { re: /\b(crea\w*|abrir|abre) (una )?sala\b/, label: 'crear sala', run: () => { setRoomOpen(true); createRoom().catch(() => {}) } },
       { re: /\b(salir de la sala|dejar la sala)\b/, label: 'salir de la sala', run: () => leaveRoom() },
@@ -466,7 +477,7 @@ export default function Immersive() {
         {hudVisible ? (
           <>
             <div className="hud-top">
-              <span className="glass hud-chip">{mode === 'vr' ? S.label : arScene === 'fogata' ? 'Fogata en RA' : 'Santuario en RA'}{inRoom ? ` · Sala ${room.code} · ${Object.keys(room.members).length + 1}` : ''}</span>
+              <span className="glass hud-chip">{mode === 'vr' ? S.label : `${S.label} en RA`}{inRoom ? ` · Sala ${room.code} · ${Object.keys(room.members).length + 1}` : room.status === 'reconnecting' ? ' · Reconectando a la sala…' : ''}</span>
               <span className="row" style={{ gap: 6 }}>
                 <button className="btn btn-sm hud-icon" onClick={() => setHudVisible(false)} aria-label="Ocultar interfaz" title="Ocultar interfaz"><EyeOff size={18} /></button>
                 <button className="btn btn-sm hud-icon" onClick={() => setMenuOpen(true)} aria-label="Menú" title="Menú"><Menu size={18} /></button>
@@ -506,14 +517,10 @@ export default function Immersive() {
           <div className="stack-sm">
             <span className="label">Escenario{isMember ? ' (lo elige el anfitrión)' : ''}</span>
             <div className="scene-grid">
-              {mode === 'vr'
-                ? Object.entries(SCENES).map(([k, sc]) => {
-                    const I = sc.icon
-                    return <button key={k} className="scene-opt" aria-pressed={kind === k} disabled={isMember} onClick={() => chooseKind(k)}><I size={20} /> {sc.label}</button>
-                  })
-                : [['santuario', 'Santuario', Flower2], ['fogata', 'Fogata', Flame]].map(([k, l, I]) => (
-                    <button key={k} className="scene-opt" aria-pressed={arScene === k} disabled={isMember} onClick={() => chooseAr(k)}><I size={20} /> {l}</button>
-                  ))}
+              {Object.entries(SCENES).map(([k, sc]) => {
+                const I = sc.icon
+                return <button key={k} className="scene-opt" aria-pressed={kind === k} disabled={isMember} onClick={() => chooseKind(k)}><I size={20} /> {sc.label}</button>
+              })}
             </div>
           </div>
           <div className="stack-sm">

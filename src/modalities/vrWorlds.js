@@ -399,3 +399,61 @@ export function viscachaHTML(id = 'wayra', extra = '') {
     <a-text class="wayra-bubble" value="" align="center" width="1.6" color="#FFFFFF" position="0 1.05 0" wrap-count="34"></a-text>
   </a-entity>`
 }
+
+// ---------- Dioramas para realidad aumentada: cada mundo en miniatura sobre la mesa ----------
+// Así, si el anfitrión cambia de mundo, quien está en RA también ve el cambio.
+function miniPine(x, z, h = 0.18) {
+  return `<a-entity position="${f(x)} 0.11 ${f(z)}"><a-cylinder radius="0.008" height="0.05" position="0 0.025 0" ${mat('bark')}></a-cylinder><a-cone radius-bottom="${f(h * 0.33)}" radius-top="0" height="${f(h)}" position="0 ${f(0.04 + h / 2)} 0" ${mat('moss', { color: '#5E9B5A' })}></a-cone></a-entity>`
+}
+function plinth(top, extra = '') {
+  return `<a-cylinder radius="0.55" height="0.1" position="0 0.05 0" segments-radial="48" ${mat('stone', { repeat: 2, rough: 0.85 })}></a-cylinder>
+    <a-cylinder radius="0.5" height="0.02" position="0 0.11 0" segments-radial="48" ${top}></a-cylinder>${extra}`
+}
+function orbHTML(id, x = -0.6, y = 0.55, z = 0.05, color = '#BFE3FF', glowC = '#2F86D6') {
+  return `<a-entity id="${id}-orb" position="${x} ${y} ${z}" scale="0.7 0.7 0.7"><a-sphere radius="0.14" material="color: ${color}; metalness: 0.1; roughness: 0.05; opacity: 0.55; transparent: true; emissive: ${glowC}; emissiveIntensity: 0.35"></a-sphere><a-sphere radius="0.06" material="shader: flat; color: #E8F5FF; opacity: 0.9; transparent: true"></a-sphere></a-entity>`
+}
+export function arDiorama(kind, id = 'cam-sanctuary', extra = '') {
+  if (kind === 'fogata') return arFogata(id, extra)
+  if (kind === 'bosque') return arSanctuary(id, extra)
+  const r = rng(kind.length * 31)
+  let o = `<a-entity id="${id}" ${extra}>`
+  if (kind === 'playa') {
+    o += plinth(mat('sand', { repeat: 2, rough: 1 }))
+    o += `<a-entity position="0 0.125 -0.22" water-surface="width: 0.95; depth: 0.4; seg: 48; amp: 0.012; speed: 1.3; flow: 0 0.3; deep: #0E4C78; shallow: #2FA6C9; skyTop: #9CC4E0; skyHorizon: #E8E2D6; foam: 0.9"></a-entity>`
+    o += `<a-entity position="0.25 0.12 0.15" rotation="0 0 -8"><a-cylinder radius="0.012" radius-top="0.008" height="0.32" position="0 0.16 0" ${mat('bark', { color: '#E8D3B8' })}></a-cylinder>${[0, 1, 2, 3, 4, 5].map((k) => `<a-cone radius-bottom="0.025" radius-top="0.002" height="0.18" position="0 0.32 0" rotation="${65 + (k % 2) * 10} ${k * 60} 0" color="${k % 2 ? '#3E9B5E' : '#2F8550'}"></a-cone>`).join('')}</a-entity>`
+    o += `<a-entity position="-0.2 0.12 0.18"><a-cylinder radius="0.004" height="0.2" position="0 0.1 0" color="#EDEDED"></a-cylinder><a-cone radius-bottom="0.12" radius-top="0.005" height="0.05" position="0 0.2 0" color="#F28F6B"></a-cone></a-entity>`
+    for (let i = 0; i < 6; i++) o += `<a-sphere radius="0.012" scale="1 0.4 1" position="${f(r() * 0.6 - 0.3)} 0.125 ${f(0.05 + r() * 0.3)}" color="${['#F7E1D7', '#F1B9A1', '#FFFFFF'][i % 3]}"></a-sphere>`
+    o += orbHTML(id, -0.6, 0.55, 0.05, '#FFE2C2', '#F28F6B')
+  } else if (kind === 'noche') {
+    o += plinth(mat('grass', { repeat: 2, color: '#3A4E66' }))
+    o += `<a-entity position="0.15 0.12 -0.1" rotation="0 -30 0"><a-cone radius-bottom="0.15" radius-top="0" height="0.2" segments-radial="4" position="0 0.1 0" color="#2F5D7C"></a-cone></a-entity>`
+    o += `<a-entity position="-0.15 0.12 0.15"><a-cylinder radius="0.02" height="0.05" position="0 0.025 0" material="color: #FFE2A8; emissive: #FFB347; emissiveIntensity: 1"></a-cylinder><a-entity light="type: point; color: #FFC071; intensity: 0.5; distance: 1" position="0 0.08 0"></a-entity></a-entity>`
+    for (let i = 0; i < 4; i++) o += miniPine(-0.32 + i * 0.2, -0.3 + (i % 2) * 0.05, 0.2)
+    o += `<a-sphere radius="0.06" position="0.3 0.75 -0.2" material="shader: flat; color: #F2F5FA"></a-sphere>`
+    for (let i = 0; i < 26; i++) { const a = r() * Math.PI * 2; o += `<a-sphere radius="0.006" position="${f(Math.cos(a) * (0.3 + r() * 0.3))} ${f(0.45 + r() * 0.5)} ${f(Math.sin(a) * (0.3 + r() * 0.3))}" material="shader: flat; color: #F4F9FC" animation="property: scale; to: 0.3 0.3 0.3; dir: alternate; loop: true; dur: ${900 + i * 60}"></a-sphere>` }
+    o += orbHTML(id)
+  } else if (kind === 'montana') {
+    o += plinth(mat('grass', { repeat: 2 }))
+    ;[[-0.2, -0.2, 0.42, 0.2], [0.12, -0.28, 0.52, 0.24], [0.32, -0.08, 0.34, 0.16]].forEach(([x, z, h, rad]) => {
+      o += `<a-entity position="${x} 0.12 ${z}"><a-cone radius-bottom="${rad}" radius-top="0" height="${h}" position="0 ${f(h / 2)} 0" segments-radial="7" ${mat('stone', { color: '#B9C2CA' })}></a-cone><a-cone radius-bottom="${f(rad * 0.33)}" radius-top="0" height="${f(h * 0.33)}" position="0 ${f(h - h * 0.165)} 0" segments-radial="7" color="#F4F9FC"></a-cone></a-entity>`
+    })
+    o += `<a-entity position="0 0.125 0.2" water-surface="radius: 0.16; seg: 32; amp: 0.003; speed: 0.8; deep: #0F3F5C; shallow: #3C92BF; skyTop: #9CC4E0; skyHorizon: #EAF4FB; foam: 0"></a-entity>`
+    for (let i = 0; i < 5; i++) o += miniPine(-0.35 + i * 0.16, 0.35 - (i % 2) * 0.08, 0.14)
+    o += orbHTML(id)
+  } else if (kind === 'espacio') {
+    o += `<a-cylinder radius="0.45" height="0.03" position="0 0.06 0" material="color: #1E2A4A; metalness: 0.6; roughness: 0.3"></a-cylinder><a-torus radius="0.45" radius-tubular="0.006" rotation="90 0 0" position="0 0.08 0" material="shader: flat; color: #7CC0F8"></a-torus>`
+    o += `<a-entity position="0.15 0.4 -0.1" animation="property: rotation; to: 0 360 0; loop: true; dur: 20000; easing: linear"><a-sphere radius="0.11" color="#D9A066"></a-sphere><a-torus radius="0.18" radius-tubular="0.015" rotation="78 0 0" scale="1 1 0.1" material="color: #E8C9A0; opacity: 0.85; transparent: true"></a-torus></a-entity>`
+    o += `<a-entity position="0 0.35 0" animation="property: rotation; to: 0 -360 0; loop: true; dur: 12000; easing: linear"><a-sphere radius="0.04" position="0.32 0 0" color="#5B8DEF"></a-sphere></a-entity>`
+    for (let i = 0; i < 8; i++) { const y = 0.2 + r() * 0.4; const x = r() * 0.8 - 0.4; o += `<a-dodecahedron radius="${f(0.015 + r() * 0.02)}" position="${f(x)} ${f(y)} ${f(r() * 0.6 - 0.3)}" color="#6E6A75" animation="property: position; to: ${f(x)} ${f(y + 0.04)} ${f(r() * 0.6 - 0.3)}; dir: alternate; loop: true; dur: ${3000 + i * 300}; easing: easeInOutSine"></a-dodecahedron>` }
+    o += orbHTML(id, -0.6, 0.55, 0.05, '#D6C8FF', '#7B5CFF')
+  } else if (kind === 'jardin') {
+    o += plinth(mat('sand', { repeat: 2, color: '#F4EEE2' }))
+    for (let i = 0; i < 6; i++) o += `<a-ring rotation="-90 0 0" position="-0.15 0.122 0.1" radius-inner="${f(0.06 + i * 0.03)}" radius-outer="${f(0.065 + i * 0.03)}" material="shader: flat; color: #D8CDB4"></a-ring>`
+    o += `<a-dodecahedron radius="0.05" position="-0.15 0.14 0.1" scale="1 0.7 1" ${mat('stone')}></a-dodecahedron>`
+    o += `<a-entity position="0.22 0.125 0.12" water-surface="radius: 0.13; seg: 32; amp: 0.003; speed: 0.6; deep: #1D4D63; shallow: #4F9DB8; skyTop: #F7C6D9; skyHorizon: #FDF1F5; foam: 0"></a-entity>`
+    o += `<a-entity position="0.1 0.12 -0.25"><a-cylinder radius="0.015" height="0.22" position="0 0.11 0" rotation="0 0 6" ${mat('bark')}></a-cylinder>${[0, 1, 2, 3, 4].map(() => `<a-sphere radius="${f(0.06 + r() * 0.04)}" position="${f(r() * 0.14 - 0.07)} ${f(0.22 + r() * 0.08)} ${f(r() * 0.14 - 0.07)}" color="${r() > 0.5 ? '#F7B7CC' : '#F9CADA'}"></a-sphere>`).join('')}</a-entity>`
+    o += `<a-entity position="-0.3 0.12 -0.15"><a-cylinder radius="0.012" height="0.08" position="0 0.04 0" color="#8E959A"></a-cylinder><a-box width="0.05" height="0.045" depth="0.05" position="0 0.1 0" material="color: #FFE2A8; emissive: #FFB347; emissiveIntensity: 0.7"></a-box><a-cone radius-bottom="0.05" radius-top="0.005" height="0.03" position="0 0.14 0" segments-radial="4" color="#7D8488"></a-cone></a-entity>`
+    o += orbHTML(id, -0.6, 0.55, 0.05, '#FFD6E6', '#E86F9A')
+  }
+  return o + '</a-entity>'
+}
