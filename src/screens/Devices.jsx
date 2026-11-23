@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bluetooth, BluetoothOff, HeartPulse, BatteryMedium, Thermometer, Activity, Droplet, Vibrate, BellRing, Send, Watch, AlertTriangle, CheckCircle2 } from 'lucide-react'
-import { useBle, connect, disconnect, buzz, sendWatchText, notify, supportsBLE, CAPS, readRaw, subscribeRaw } from '../lib/ble'
+import { useBle, connect, disconnect, buzz, sendWatchText, notify, supportsBLE, CAPS, readRaw, subscribeRaw, getMapping, setMapping } from '../lib/ble'
 import { useVoiceCommands } from '../lib/voice'
 import { Notice, Segmented, HowTo, VoiceHints } from '../components/ui'
 import { toast } from '../components/Toast'
@@ -120,7 +120,7 @@ export default function Devices() {
         <details className="card howto" open={b.caps.length === 0}>
           <summary><Bluetooth size={18} /> Todo lo que expone este reloj ({b.services.length} servicios)</summary>
           <div className="stack-sm">
-            <p className="muted small">Aquí ves cualquier reloj, aunque use un formato propio. Puedes leer valores o escuchar los que se actualizan solos (por ejemplo, el pulso). Los datos propietarios llegan en hexadecimal porque cada fabricante usa su propio formato.</p>
+            <p className="muted small">Aquí ves cualquier reloj, aunque use un formato propio. Puedes leer valores o escuchar los que se actualizan solos (por ejemplo, el pulso). Si el reloj usa un formato propio, verás números sueltos: mide el pulso u oxígeno en el reloj y Escucha te sugerirá qué número corresponde; con “usar” lo verás arriba como signo vital.</p>
             {b.services.map((svc) => (
               <div key={svc.uuid} className="card stack-sm" style={{ padding: 12 }}>
                 <div className="row between" style={{ flexWrap: 'wrap' }}><b>{svc.label}</b><code className="muted small">{svc.uuid.slice(0, 8)}</code></div>
@@ -134,11 +134,36 @@ export default function Devices() {
                         {c.notify && <button className="btn btn-sm" onClick={() => run(() => subscribeRaw(c.key))}>Escuchar</button>}
                       </span>
                     </div>
-                    {b.raw[c.key] && (
-                      <code className="small" style={{ overflowWrap: 'anywhere', color: b.raw[c.key].live ? 'var(--success)' : 'var(--ink)' }}>
-                        {b.raw[c.key].text ? `“${b.raw[c.key].text}” · ` : ''}{b.raw[c.key].hex}
-                      </code>
-                    )}
+                    {b.raw[c.key] && (() => {
+                      const r = b.raw[c.key]
+                      const mapped = getMapping()[c.key]
+                      return (
+                        <div className="stack-sm">
+                          {r.text ? <span className="small">Texto: “{r.text}”</span> : null}
+                          <div className="byte-row" aria-label="Valores recibidos">
+                            {r.bytes.map((v, i) => (
+                              <span key={i} className={`byte ${mapped?.index === i ? 'on' : ''}`} title={`Byte ${i + 1}`}><small>{i + 1}</small>{v}</span>
+                            ))}
+                          </div>
+                          {mapped ? (
+                            <div className="row-wrap" style={{ alignItems: 'center' }}>
+                              <span className="tag tag-live">Byte {mapped.index + 1} = {mapped.vital === 'bpm' ? 'pulso' : 'oxígeno'}: {r.bytes[mapped.index]}{mapped.vital === 'bpm' ? ' lpm' : ' %'}</span>
+                              <button className="btn btn-ghost btn-sm" onClick={() => setMapping(c.key, null, null)}>Quitar</button>
+                            </div>
+                          ) : r.suggestions?.length > 0 ? (
+                            <div className="row-wrap">
+                              {r.suggestions.map((sg) => (
+                                <button key={`${sg.index}-${sg.vital}`} className="btn btn-sm btn-tint" onClick={() => setMapping(c.key, sg.index, sg.vital)}>
+                                  Byte {sg.index + 1}: {sg.label} · usar
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="muted small">{r.live ? 'Recibiendo… mueve la muñeca o mide desde el reloj para ver qué número cambia.' : 'Toca “Escuchar” para ver cómo cambian los valores.'}</span>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
                 ))}
               </div>

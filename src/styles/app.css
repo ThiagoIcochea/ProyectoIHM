@@ -594,3 +594,22 @@ input[type='range'] { width: 100%; accent-color: var(--primary); height: 32px; }
 .tv-mini { aspect-ratio: 16 / 9; border-radius: 12px; background: radial-gradient(ellipse at 50% 120%, color-mix(in srgb, var(--glow) 40%, #05090E), #05090E 70%); border: 6px solid #1B2A35; display: grid; place-items: center; }
 .tv-mini span { width: 26%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff, var(--glow) 60%); box-shadow: 0 0 30px var(--glow); animation: tvbreath 8s ease-in-out infinite; }
 @keyframes tvbreath { 0%, 100% { transform: scale(0.7); } 50% { transform: scale(1); } }
+
+/* ---------- HUD mínimo del santuario ---------- */
+.hud-top { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px; z-index: 5; pointer-events: none; }
+.hud-top > * { pointer-events: auto; }
+.hud-chip { padding: 8px 14px; border-radius: 999px; font-weight: 650; font-size: 0.875rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60vw; }
+.hud-icon { width: 44px; padding: 0; background: color-mix(in srgb, var(--surface) 85%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.hud-show { position: absolute; top: 12px; right: 12px; z-index: 5; opacity: 0.7; }
+.hud-bottom { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; gap: 8px; z-index: 5; }
+.wayra-caption { position: absolute; left: 12px; bottom: 72px; z-index: 5; max-width: min(420px, calc(100% - 100px)); padding: 10px 14px; font-size: 0.9rem; animation: pop-in 200ms var(--ease-out) both; }
+@media (max-width: 699px) { .hud-bottom { left: 12px; transform: none; } .wayra-caption { bottom: 68px; } }
+.scene-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.scene-opt { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink); font-weight: 600; cursor: pointer; transition: border-color 160ms ease, background-color 160ms ease, transform 140ms var(--ease-out); }
+.scene-opt:active { transform: scale(0.97); }
+.scene-opt[aria-pressed='true'] { border-color: var(--primary); background: var(--tint); color: var(--primary); }
+.scene-opt:disabled { opacity: 0.55; cursor: not-allowed; }
+.byte-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.byte { display: inline-flex; flex-direction: column; align-items: center; min-width: 40px; padding: 4px 6px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); font-variant-numeric: tabular-nums; font-weight: 650; font-size: 0.9rem; line-height: 1.1; }
+.byte small { font-size: 0.65rem; color: var(--ink-2); font-weight: 500; }
+.byte.on { border-color: var(--success); background: var(--success-tint); }

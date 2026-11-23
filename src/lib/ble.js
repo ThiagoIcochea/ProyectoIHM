@@ -268,19 +268,58 @@ export async function notify(title, body, url) {
 }
 
 // ---------- Explorador genérico (cualquier reloj) ----------
+// Los relojes con formato propio envían bytes. Aquí se muestran como números normales (no hexadecimal),
+// se sugiere qué byte parece pulso u oxígeno y la persona puede asignarlo para verlo como signo vital.
+const MAP_KEY = 'escucha.bleMap'
+const hist = {}
+function loadMap() {
+  try { return JSON.parse(localStorage.getItem(`${MAP_KEY}.${st.name}`) || '{}') } catch { return {} }
+}
+export function getMapping() { return loadMap() }
+export function setMapping(key, index, vital) {
+  const m = loadMap()
+  if (vital) m[key] = { index, vital }
+  else delete m[key]
+  try { localStorage.setItem(`${MAP_KEY}.${st.name}`, JSON.stringify(m)) } catch { /* nada */ }
+  set({ mapVersion: (st.mapVersion || 0) + 1 })
+  addLog(vital ? `Asignado: byte ${index + 1} como ${vital === 'bpm' ? 'pulso' : vital === 'spo2' ? 'oxígeno' : vital}` : 'Asignación quitada')
+}
+function suggest(key) {
+  const h = hist[key] || []
+  if (!h.length) return []
+  const len = Math.max(...h.map((x) => x.length))
+  const out = []
+  for (let i = 0; i < len; i++) {
+    const vals = h.map((x) => x[i]).filter((v) => v != null)
+    const last = vals[vals.length - 1]
+    const min = Math.min(...vals)
+    const max = Math.max(...vals)
+    const varies = max - min
+    if (last >= 40 && last <= 200 && varies <= 40 && (vals.length < 3 || varies >= 1)) out.push({ index: i, value: last, vital: 'bpm', label: `posible pulso: ${last} lpm` })
+    if (last >= 85 && last <= 100 && varies <= 5) out.push({ index: i, value: last, vital: 'spo2', label: `posible oxígeno: ${last} %` })
+  }
+  return out.slice(0, 4)
+}
+function ingest(key, v, live) {
+  const bytes = Array.from(new Uint8Array(v.buffer, v.byteOffset, v.byteLength))
+  hist[key] = [...(hist[key] || []), bytes].slice(-20)
+  const map = loadMap()[key]
+  if (map && bytes[map.index] != null) {
+    const val = bytes[map.index]
+    set({ vitals: { ...st.vitals, [map.vital]: val } })
+    if (map.vital === 'bpm') setIot('band', { bpm: val, source: 'ble' })
+  }
+  set({ raw: { ...st.raw, [key]: { bytes, text: toText(v), hex: toHex(v), at: new Date(), live, suggestions: suggest(key) } } })
+}
 export async function readRaw(key) {
   const ch = handles[key]
   if (!ch) return
-  const v = await ch.readValue()
-  set({ raw: { ...st.raw, [key]: { hex: toHex(v), text: toText(v), at: new Date() } } })
+  ingest(key, await ch.readValue(), false)
 }
 export async function subscribeRaw(key) {
   const ch = handles[key]
   if (!ch) return
-  ch.addEventListener('characteristicvaluechanged', (e) => {
-    const v = e.target.value
-    set({ raw: { ...st.raw, [key]: { hex: toHex(v), text: toText(v), at: new Date(), live: true } } })
-  })
+  ch.addEventListener('characteristicvaluechanged', (e) => ingest(key, e.target.value, true))
   await ch.startNotifications()
-  addLog(`Escuchando ${labelFor(ch.uuid)} (${short(ch.uuid)})`)
+  addLog(`Escuchando ${labelFor(ch.uuid)}`)
 }

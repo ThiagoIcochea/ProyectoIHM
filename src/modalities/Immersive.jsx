@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
-import { Trees, Waves, Moon, Mountain, Orbit, Flower2, Play, Square, Camera, Glasses, Volume2, VolumeX, Smartphone, Hand, LocateFixed, Flame, Users, Copy, LogOut, Share2, Mic, MicOff, Keyboard, UserRound } from 'lucide-react'
+import { Trees, Waves, Moon, Mountain, Orbit, Flower2, Play, Square, Camera, Glasses, Volume2, VolumeX, Smartphone, Hand, LocateFixed, Flame, Users, Copy, LogOut, Share2, Mic, MicOff, UserRound, Eye, EyeOff, Menu, Shapes } from 'lucide-react'
 import { WORLDS, buildWorld, skyTexture, breathParticles, terrainAttr, envAttr, arSanctuary, arFogata } from './vrWorlds'
 import { registerXR } from './xr'
 import { useRoom, createRoom, joinRoom, leaveRoom, sendPose, sendReaction, sendBreath, onRemoteBreath, REACTIONS, sendAvatar, sendScene, startTalking, stopTalking, listAudioDevices, setVoiceOutput } from '../lib/rooms'
 import { avatarHTML } from './avatars'
 import { useStore } from '../lib/store'
 import AvatarEditor from '../components/AvatarEditor'
-import { askWayra, WAYRA_GREETING } from '../lib/companion'
+import { askWayra } from '../lib/companion'
 import { viscachaHTML } from './vrWorlds'
-import { Sheet } from '../components/ui'
+import { Sheet, Switch } from '../components/ui'
 import { toast } from '../components/Toast'
 import { assetsHTML } from './textures'
 import { useBreath } from '../lib/breath'
-import { useVoice, useVoiceCommands } from '../lib/voice'
+import { useVoice, useVoiceCommands, useFreeText } from '../lib/voice'
 import { playAmbient, stopAmbient } from '../lib/sound'
 import { HowTo } from '../components/ui'
 
@@ -54,8 +54,10 @@ function arCameraHTML(motion, arScene) {
     ${piece}
     ${viscachaHTML('wayra', `class="clickable" position="0.78 ${arScene === 'fogata' ? 0.55 : 0.62} -1.5" rotation="0 153 0" scale="0.7 0.7 0.7"`)}
     <a-entity id="avatars" position="0 ${arScene === 'fogata' ? 0.75 : 0.9} -1.7"></a-entity>
+    <a-entity id="guide">
     <a-text id="ar-phase" value="Mira la esfera y respira" align="center" color="#FFFFFF" width="2.4" position="0 1.78 -1.8"></a-text>
     <a-text id="ar-count" value="" align="center" color="#FFFFFF" width="4" position="0 1.56 -1.8"></a-text>
+    </a-entity>
     ${cameraHTML(motion)}
   </a-scene>`
 }
@@ -69,10 +71,8 @@ function button3d(id, label, x, y = 0.95, color = '#0966BF', w = 0.9) {
 
 function sceneHTML(kind, motion) {
   const s = SCENES[kind]
-  const keys = Object.keys(SCENES)
-  const worldButtons = keys.map((k, i) => button3d(`b-${k}`, SCENES[k].label, ((i % 4) - 1.5) * 0.95, i < 4 ? 0.5 : 0.16, '#24435C', 0.88)).join('')
   return `
-  <a-scene embedded xr-mode-ui="enabled: true; XRMode: xr" renderer="antialias: true; colorManagement: true"
+  <a-scene embedded xr-mode-ui="enabled: false" renderer="antialias: true; colorManagement: true"
     webxr="optionalFeatures: local-floor, bounded-floor, hand-tracking, hit-test, light-estimation" ar-hit-test="target: #ar-sanctuary; type: footprint" ${s.fog ? `fog="type: linear; color: ${s.fog}; near: 14; far: 80"` : ''}
     cursor="rayOrigin: mouse" raycaster="objects: .clickable" loading-screen="enabled: false" device-orientation-permission-ui="enabled: false" env-light="${envAttr(s)}">
     ${assetsHTML()}
@@ -84,6 +84,7 @@ function sceneHTML(kind, motion) {
     ${arSanctuary('ar-sanctuary', 'position="0 0 -1.2" visible="false"')}
     <a-entity id="props">${buildWorld(kind)}</a-entity>
     <a-cylinder radius="0.9" height="0.06" position="0 0.03 0" material="color: #FFFFFF; opacity: 0.25; transparent: true" hide-on-enter-ar></a-cylinder>
+    <a-entity id="guide">
     <a-sphere id="orb" position="0 1.6 -3.2" radius="0.45" scale="0.7 0.7 0.7" material="color: #7CC0F8; emissive: #2F86D6; emissiveIntensity: 0.7; opacity: 0.92; transparent: true"></a-sphere>
     <a-entity light="type: point; color: #7CC0F8; intensity: 0.6; distance: 6" position="0 1.6 -3"></a-entity>
     <a-ring position="0 1.6 -3.25" radius-inner="0.78" radius-outer="0.8" material="color: #FFFFFF; shader: flat; opacity: 0.6; transparent: true"></a-ring>
@@ -91,9 +92,12 @@ function sceneHTML(kind, motion) {
     <a-text id="phase" value="Mira la esfera y respira" align="center" color="${s.text}" width="5" position="0 2.65 -3.2"></a-text>
     <a-text id="desc" value="${s.label}: ${s.desc}" align="center" color="${s.text}" width="3.2" position="0 2.32 -3.2"></a-text>
     <a-text id="count" value="" align="center" color="#FFFFFF" width="7" position="0 1.6 -2.6"></a-text>
+    </a-entity>
     ${viscachaHTML('wayra', 'class="clickable" position="2.4 0 -2.2" rotation="0 132 0"')}
-    ${button3d('b-start', 'Respirar', 0, 0.86, '#0966BF', 1.1)}
-    ${worldButtons}
+    <a-entity id="ui3d">
+      ${button3d('b-start', 'Respirar', -0.58, 0.55, '#0966BF', 1.0)}
+      ${button3d('b-next', 'Otro lugar', 0.58, 0.55, '#24435C', 1.0)}
+    </a-entity>
     <a-entity id="rig" position="0 0 0">
       ${cameraHTML(motion)}
       <a-entity laser-controls="hand: right" raycaster="objects: .clickable; far: 20" line="color: #7CC0F8; opacity: 0.8"></a-entity>
@@ -110,6 +114,14 @@ export default function Immersive() {
   const [mode, setMode] = useState('vr') // vr | camara
   const [arScene, setArScene] = useState('santuario') // santuario | fogata
   const [roomOpen, setRoomOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [hudVisible, setHudVisible] = useState(true)
+  const [guideVisible, setGuideVisible] = useState(true)
+  const [xrSupport, setXrSupport] = useState({ vr: false, ar: false })
+  useEffect(() => {
+    navigator.xr?.isSessionSupported?.('immersive-vr').then((vr) => setXrSupport((x) => ({ ...x, vr }))).catch(() => {})
+    navigator.xr?.isSessionSupported?.('immersive-ar').then((ar) => setXrSupport((x) => ({ ...x, ar }))).catch(() => {})
+  }, [])
   const [joinCode, setJoinCode] = useState('')
   const room = useRoom()
   const inRoom = room.status === 'host' || room.status === 'member'
@@ -168,7 +180,10 @@ export default function Immersive() {
         sc?.addEventListener('exit-vr', () => root.querySelector('#ar-sanctuary')?.setAttribute('visible', false))
         const on = (id, fn) => root.querySelector(id)?.addEventListener('click', fn)
         on('#b-start', () => (bRef.current.started ? stopRef.current() : startRef.current()))
-        Object.keys(SCENES).forEach((k) => on(`#b-${k}`, () => chooseKindRef.current(k)))
+        on('#b-next', () => {
+          const keys = Object.keys(SCENES)
+          chooseKindRef.current(keys[(keys.indexOf(kindRef.current) + 1) % keys.length])
+        })
         root.querySelector('#wayra')?.addEventListener('click', () => talkRef.current())
         setReady(true)
       })
@@ -309,17 +324,16 @@ export default function Immersive() {
   const toggleTalk = () => (room.talking ? stopTalking() : startTalking(micId))
 
   // ---------- Wayra, la viscacha (solo en la sala personal) ----------
-  const [wayraText, setWayraText] = useState(WAYRA_GREETING)
-  const [wayraBusy, setWayraBusy] = useState(false)
-  const [wayraTyping, setWayraTyping] = useState(false)
-  const [wayraDraft, setWayraDraft] = useState('')
+  const [wayraLine, setWayraLine] = useState('')
+  const wayraBusy = useRef(false)
   useEffect(() => {
     const root = host.current
     if (!ready || !root) return
     root.querySelector('#wayra')?.setAttribute('visible', !inRoom)
+    if (!inRoom) root.querySelector('.wayra-bubble')?.setAttribute('value', 'Háblame cuando quieras')
   }, [ready, inRoom, mode])
   const wayraSay = (text) => {
-    setWayraText(text)
+    setWayraLine(text)
     const root = host.current
     root?.querySelector('.wayra-bubble')?.setAttribute('value', text.length > 120 ? `${text.slice(0, 117)}…` : text)
     const head = root?.querySelector('.wayra-head')
@@ -334,22 +348,25 @@ export default function Immersive() {
       onEnd: () => {
         head?.removeAttribute('animation__talk')
         mouth?.setAttribute('animation', 'property: scale; to: 1 1 1; dur: 120')
+        setTimeout(() => setWayraLine(''), 6000)
       }
     })
   }
-  const talkToWayra = async (typed) => {
-    if (wayraBusy) return
-    let text = typed
-    if (!text) {
-      setWayraText('Te escucho…')
-      text = await v.dictate()
-    }
-    if (!text) return
-    setWayraBusy(true)
-    setWayraText('Pensando…')
+  const talkToWayra = async (text) => {
+    if (wayraBusy.current || !text) return
+    wayraBusy.current = true
+    host.current?.querySelector('.wayra-bubble')?.setAttribute('value', '…')
     const reply = await askWayra(text)
-    setWayraBusy(false)
+    wayraBusy.current = false
     wayraSay(reply)
+  }
+  // En la sala personal, todo lo que digas por el micrófono (que no sea una orden) va a Wayra
+  useFreeText('wayra', !inRoom ? (t) => talkToWayra(t) : undefined, [inRoom])
+  // Tocar a Wayra abre el micrófono
+  const listenForWayra = () => {
+    if (inRoom) return
+    host.current?.querySelector('.wayra-bubble')?.setAttribute('value', 'Te escucho…')
+    v.startListening()
   }
 
   const startBreath = () => {
@@ -362,7 +379,7 @@ export default function Immersive() {
   }
   startRef.current = startBreath
   chooseKindRef.current = chooseKind
-  talkRef.current = () => talkToWayra()
+  talkRef.current = () => listenForWayra()
   stopRef.current = stopBreath
   const shareCode = async () => {
     const text = `Únete a mi sala de calma en Escucha con el código ${room.code}`
@@ -394,6 +411,19 @@ export default function Immersive() {
     return () => stream?.getTracks().forEach((t) => t.stop())
   }, [mode])
 
+  // Mostrar u ocultar la guía de respiración y los botones 3D
+  useEffect(() => {
+    const root = host.current
+    if (!ready || !root) return
+    root.querySelector('#guide')?.setAttribute('visible', guideVisible)
+    root.querySelectorAll('#cam-sanctuary-orb, #ar-sanctuary-orb').forEach((o) => o.setAttribute('visible', guideVisible))
+    root.querySelector('#ui3d')?.setAttribute('visible', hudVisible)
+    root.querySelectorAll('#ui3d > a-entity').forEach((el) => el.classList.toggle('clickable', hudVisible))
+    root.querySelectorAll('[raycaster]').forEach((r) => r.components?.raycaster?.refreshObjects?.())
+  }, [guideVisible, hudVisible, ready, mode, arScene])
+  useEffect(() => { if (b.started) setGuideVisible(true) }, [b.started])
+
+  const enterAR = () => host.current?.querySelector('a-scene')?.enterAR?.()
   const enterVR = () => {
     const scene = host.current?.querySelector('a-scene')
     if (!scene) return
@@ -410,7 +440,7 @@ export default function Immersive() {
       { re: /\b(crea\w*|abrir|abre) (una )?sala\b/, label: 'crear sala', run: () => { setRoomOpen(true); createRoom().catch(() => {}) } },
       { re: /\b(salir de la sala|dejar la sala)\b/, label: 'salir de la sala', run: () => leaveRoom() },
       { re: /\b(te acompano|respira conmigo|gracias|estoy aqui)\b/, label: 'te acompaño', run: (m) => inRoom && sendReaction({ 'te acompano': 'acompano', 'respira conmigo': 'respira', gracias: 'gracias', 'estoy aqui': 'aqui' }[m[1]]) },
-      { re: /\b(wayra|viscacha)\b/, label: 'hablar con Wayra', run: () => !inRoom && talkToWayra() },
+
       { re: /\b(activa\w*|abre|abrir) (el )?microfono\b|\bquiero hablar\b/, label: 'activar micrófono de la sala', run: () => inRoom && !room.talking && startTalking(micId) },
       { re: /\b(silencia\w*|apaga\w*|cierra) (el )?microfono\b/, label: 'silenciar micrófono', run: () => stopTalking() },
       { re: /\b(respir\w*|empez\w*)\b/, label: 'respirar', run: () => startBreath() },
@@ -420,7 +450,7 @@ export default function Immersive() {
       { re: /\b(sonido|musica)\b/, label: 'sonido', run: () => setAudio((a) => !a) },
       { re: /\b(entrar|entra|visor|inmersivo)\b/, label: 'entrar al visor', run: enterVR }
     ],
-    [b.started, mode, inRoom, room.status, room.talking, micId, wayraBusy]
+    [b.started, mode, inRoom, room.status, room.talking, micId]
   )
 
   const S = SCENES[kind]
@@ -433,76 +463,28 @@ export default function Immersive() {
         {!ready && !err && <div className="glass" style={{ position: 'absolute', left: '50%', top: '45%', transform: 'translate(-50%,-50%)' }}>Cargando el santuario 3D…</div>}
         {err && <div className="glass" style={{ position: 'absolute', left: 16, right: 16, top: 80 }}>{err}</div>}
 
-        <div className="vr-overlay">
-          <div className="glass" style={{ maxWidth: 360 }}>
-            <b>Santuario de calma</b>
-            <p className="muted small">{mode === 'vr' ? 'Arrastra para mirar alrededor, W A S D para moverte. Con visor, apunta y aprieta el gatillo.' : (arScene === 'fogata' ? 'Una fogata con fuego, chispas y humo aparece sobre tu cámara.' : 'Un santuario con piedra, musgo, agua en movimiento y una vela aparece sobre tu cámara.') + ' Funciona también en iPhone.'}{isTouch ? (motion ? ' Mueve el teléfono para mirar.' : ' Desliza con el dedo para mirar.') : ''}</p>
-          </div>
-          <div className="row-wrap">
-            {isTouch && (
-              <button className="btn btn-sm" onClick={toggleMotion} aria-pressed={motion} title="Cómo mirar alrededor">
-                {motion ? <Smartphone size={16} /> : <Hand size={16} />} {motion ? 'Con el teléfono' : 'Con el dedo'}
-              </button>
-            )}
-            {isTouch && motion && <button className="btn btn-sm" onClick={recenter} aria-label="Recentrar la vista"><LocateFixed size={16} /></button>}
-            <button className="btn btn-sm" onClick={() => setRoomOpen(true)} aria-label="Sala compartida" style={inRoom ? { borderColor: 'var(--success)', color: 'var(--success)' } : undefined}>
-              <Users size={16} /> {inRoom ? `${room.code} · ${Object.keys(room.members).length + 1}` : 'Sala personal'}
-            </button>
-            <button className="btn btn-sm" onClick={() => setAudio(!audio)} aria-pressed={audio}>{audio ? <Volume2 size={16} /> : <VolumeX size={16} />} Sonido</button>
-            {mode === 'vr' ? (
-              <button className="btn btn-sm" onClick={() => setMode('camara')}><Camera size={16} /> RA con cámara</button>
-            ) : (
-              <button className="btn btn-sm" onClick={() => setMode('vr')}><Glasses size={16} /> Volver al 3D</button>
-            )}
-          </div>
-        </div>
-
-        {!inRoom && ready && (
-          <div className="glass wayra-card" aria-live="polite">
-            <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
-              <span className="wayra-face" aria-hidden="true">W</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <b className="small">Wayra, la viscacha</b>
-                <p className="small" style={{ margin: 0 }}>{wayraText}</p>
-              </div>
+        {hudVisible ? (
+          <>
+            <div className="hud-top">
+              <span className="glass hud-chip">{mode === 'vr' ? S.label : arScene === 'fogata' ? 'Fogata en RA' : 'Santuario en RA'}{inRoom ? ` · Sala ${room.code} · ${Object.keys(room.members).length + 1}` : ''}</span>
+              <span className="row" style={{ gap: 6 }}>
+                <button className="btn btn-sm hud-icon" onClick={() => setHudVisible(false)} aria-label="Ocultar interfaz" title="Ocultar interfaz"><EyeOff size={18} /></button>
+                <button className="btn btn-sm hud-icon" onClick={() => setMenuOpen(true)} aria-label="Menú" title="Menú"><Menu size={18} /></button>
+              </span>
             </div>
-            {wayraTyping ? (
-              <form className="row" style={{ gap: 6, marginTop: 8 }} onSubmit={(e) => { e.preventDefault(); const t = wayraDraft.trim(); if (t) { setWayraDraft(''); talkToWayra(t) } }}>
-                <input className="input" style={{ minHeight: 40 }} value={wayraDraft} onChange={(e) => setWayraDraft(e.target.value)} placeholder="Escríbele a Wayra…" aria-label="Mensaje para Wayra" autoFocus />
-                <button className="btn btn-sm btn-primary" type="submit" disabled={wayraBusy}>Enviar</button>
-              </form>
-            ) : (
-              <div className="row" style={{ gap: 6, marginTop: 8 }}>
-                <button className="btn btn-sm btn-primary" disabled={wayraBusy} onClick={() => talkToWayra()}><Mic size={16} /> {wayraBusy ? 'Pensando…' : 'Hablar con Wayra'}</button>
-                <button className="btn btn-sm" onClick={() => setWayraTyping(true)} aria-label="Escribirle a Wayra"><Keyboard size={16} /></button>
-              </div>
-            )}
-          </div>
+            <div className="hud-bottom">
+              {b.started ? (
+                <button className="btn btn-sm" onClick={stopBreath}><Square size={16} /> Detener</button>
+              ) : (
+                <button className="btn btn-primary btn-sm" onClick={startBreath}><Play size={16} /> {inRoom ? 'Respirar juntos' : 'Respirar'}</button>
+              )}
+              <button className="btn btn-sm" onClick={() => setMenuOpen(true)}><Shapes size={16} /> Escenario</button>
+            </div>
+            {!inRoom && wayraLine && <div className="glass wayra-caption" aria-live="polite"><b>Wayra:</b> {wayraLine}</div>}
+          </>
+        ) : (
+          <button className="btn btn-sm hud-icon hud-show" onClick={() => setHudVisible(true)} aria-label="Mostrar interfaz" title="Mostrar interfaz"><Eye size={18} /></button>
         )}
-        <div className="vr-bottom">
-          {mode === 'camara' && [['santuario', 'Santuario', Flower2], ['fogata', 'Fogata', Flame]].map(([k, l, I]) => (
-            <button key={k} className="btn btn-sm" aria-pressed={arScene === k} style={arScene === k ? { borderColor: 'var(--primary)', color: 'var(--primary)' } : undefined} onClick={() => chooseAr(k)}>
-              <I size={16} /> {l}
-            </button>
-          ))}
-          {inRoom && Object.entries(REACTIONS).slice(0, 2).map(([k, l]) => (
-            <button key={k} className="btn btn-sm" onClick={() => sendReaction(k)}>{l}</button>
-          ))}
-          {mode === 'vr' && Object.entries(SCENES).map(([k, s]) => {
-            const I = s.icon
-            return (
-              <button key={k} className="btn btn-sm" aria-pressed={kind === k} style={kind === k ? { borderColor: 'var(--primary)', color: 'var(--primary)' } : undefined} onClick={() => chooseKind(k)}>
-                <I size={16} /> {s.label}
-              </button>
-            )
-          })}
-          {b.started ? (
-            <button className="btn btn-sm" onClick={stopBreath}><Square size={16} /> Detener</button>
-          ) : (
-            <button className="btn btn-primary btn-sm" onClick={startBreath}><Play size={16} /> {inRoom ? 'Respirar juntos' : 'Respirar'}</button>
-          )}
-          {mode === 'vr' && <button className="btn btn-sm" onClick={enterVR}><Glasses size={16} /> Entrar al visor</button>}
-        </div>
       </div>
       <div style={{ padding: 16, maxWidth: 1000 }} className="stack">
         <div className="stack-sm">
@@ -519,6 +501,44 @@ export default function Immersive() {
           ]}
         />
       </div>
+      <Sheet open={menuOpen} onClose={() => setMenuOpen(false)} title="Santuario">
+        <div className="stack">
+          <div className="stack-sm">
+            <span className="label">Escenario{isMember ? ' (lo elige el anfitrión)' : ''}</span>
+            <div className="scene-grid">
+              {mode === 'vr'
+                ? Object.entries(SCENES).map(([k, sc]) => {
+                    const I = sc.icon
+                    return <button key={k} className="scene-opt" aria-pressed={kind === k} disabled={isMember} onClick={() => chooseKind(k)}><I size={20} /> {sc.label}</button>
+                  })
+                : [['santuario', 'Santuario', Flower2], ['fogata', 'Fogata', Flame]].map(([k, l, I]) => (
+                    <button key={k} className="scene-opt" aria-pressed={arScene === k} disabled={isMember} onClick={() => chooseAr(k)}><I size={20} /> {l}</button>
+                  ))}
+            </div>
+          </div>
+          <div className="stack-sm">
+            <span className="label">Modo</span>
+            <div className="row-wrap">
+              {mode === 'vr'
+                ? <button className="btn btn-sm" onClick={() => { setMode('camara'); setMenuOpen(false) }}><Camera size={16} /> Realidad aumentada con cámara</button>
+                : <button className="btn btn-sm" onClick={() => { setMode('vr'); setMenuOpen(false) }}><Glasses size={16} /> Volver a realidad virtual</button>}
+              {mode === 'vr' && xrSupport.vr && <button className="btn btn-sm" onClick={() => { setMenuOpen(false); enterVR() }}><Glasses size={16} /> Entrar al visor (VR)</button>}
+              {mode === 'vr' && xrSupport.ar && <button className="btn btn-sm" onClick={() => { setMenuOpen(false); enterAR() }}><Camera size={16} /> RA en tu habitación</button>}
+              {mode === 'vr' && !xrSupport.vr && <button className="btn btn-sm" onClick={() => { setMenuOpen(false); enterVR() }}><Glasses size={16} /> Pantalla completa</button>}
+            </div>
+          </div>
+          <div>
+            <Switch id="guide-vis" label="Guía de respiración visible" hint="La esfera, el anillo y el texto. Se muestra sola al empezar a respirar." checked={guideVisible} onChange={setGuideVisible} />
+            <Switch id="snd" label="Sonido del lugar" checked={audio} onChange={setAudio} />
+            {isTouch && <Switch id="mot" label="Mirar moviendo el teléfono" hint="Si lo apagas, deslizas con el dedo" checked={motion} onChange={() => toggleMotion()} />}
+          </div>
+          <div className="row-wrap">
+            {isTouch && motion && <button className="btn btn-sm" onClick={() => { recenter(); setMenuOpen(false) }}><LocateFixed size={16} /> Recentrar la vista</button>}
+            <button className="btn btn-sm" onClick={() => { setMenuOpen(false); setRoomOpen(true) }}><Users size={16} /> {inRoom ? `Sala ${room.code}` : 'Sala compartida'}</button>
+          </div>
+          {!inRoom && <p className="muted small">Wayra, la viscacha, te acompaña en tu sala personal. Habla con el micrófono de siempre (o tócala) y te responderá con su voz.</p>}
+        </div>
+      </Sheet>
       <Sheet open={roomOpen} onClose={() => setRoomOpen(false)} title={inRoom ? `Sala ${room.code}` : 'Sala de autoayuda'}>
         <div className="stack">
           {!inRoom ? (

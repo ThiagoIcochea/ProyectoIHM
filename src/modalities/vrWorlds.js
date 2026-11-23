@@ -178,8 +178,8 @@ const BUILDERS = {
   },
   fogata() {
     const r = rng(43)
-    const FX = -3.8
-    const FZ = -5.2
+    const FX = -4.6
+    const FZ = -6.4
     let o = ''
     for (let i = 0; i < 220; i++) {
       const a = r() * Math.PI * 2
@@ -202,9 +202,10 @@ const BUILDERS = {
     for (let i = 0; i < 14; i++) o += `<a-sphere radius="${f(0.04 + r() * 0.04)}" position="${f((r() - 0.5) * 0.6)} 0.05 ${f((r() - 0.5) * 0.6)}" material="color: #FF5A1F; emissive: #FF3D00; emissiveIntensity: 1.2" animation="property: material.emissiveIntensity; from: 0.5; to: 1.6; dir: alternate; loop: true; dur: ${Math.round(300 + r() * 500)}"></a-sphere>`
     o += `<a-entity position="0 0.12 0" fire="scale: 1.1; flames: 170; sparks: 50; smoke: 34"></a-entity></a-entity>`
     // Troncos para sentarse alrededor
-    ;[[0.6, 2.4], [2.1, 1.0], [-1.3, 0.5]].forEach(([dx, dz], i) => {
-      const x = FX + dx * (i === 2 ? -1 : 1)
-      const z = FZ + dz * (i === 0 ? -1 : 1)
+    // Troncos para sentarse, del lado opuesto al usuario para no cruzar la zona de respiración
+    ;[[-1.7, -1.3], [0.6, -2.1], [-2.3, 1.0]].forEach(([dx, dz]) => {
+      const x = FX + dx
+      const z = FZ + dz
       const yaw = Math.atan2(FX - x, FZ - z) * 57.3 + 90
       o += `<a-cylinder radius="0.22" height="1.6" position="${f(x)} 0.2 ${f(z)}" rotation="0 ${f(yaw)} 90" ${mat('bark', { repeat: 2, color: '#D8C3A5' })} ${HIDE}></a-cylinder>`
     })
@@ -346,7 +347,7 @@ export function arFogata(id = 'ar-fogata', extra = '') {
   }
   for (let i = 0; i < 10; i++) o += `<a-sphere radius="${f(0.015 + r() * 0.015)}" position="${f((r() - 0.5) * 0.22)} 0.02 ${f((r() - 0.5) * 0.22)}" material="color: #FF5A1F; emissive: #FF3D00; emissiveIntensity: 1.2" animation="property: material.emissiveIntensity; from: 0.5; to: 1.6; dir: alternate; loop: true; dur: ${Math.round(300 + r() * 500)}"></a-sphere>`
   o += `<a-entity position="0 0.05 0" fire="scale: 0.42; flames: 120; sparks: 30; smoke: 20"></a-entity>
-    <a-entity id="${id}-orb" position="0.55 0.45 0.1" scale="0.7 0.7 0.7">
+    <a-entity id="${id}-orb" position="-0.6 0.55 0.05" scale="0.7 0.7 0.7">
       <a-sphere radius="0.13" material="color: #FFD9A8; metalness: 0.1; roughness: 0.05; opacity: 0.5; transparent: true; emissive: #FF9A3D; emissiveIntensity: 0.4"></a-sphere>
     </a-entity>
   </a-entity>`

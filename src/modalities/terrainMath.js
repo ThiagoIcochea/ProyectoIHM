@@ -37,7 +37,7 @@ export const ZONES = {
   playa: [{ kind: 'sea', zMax: -8.6, water: true }],
   montana: [{ kind: 'circle', x: 0, z: -17, r: 9.2, water: true }],
   jardin: [{ kind: 'circle', x: 6.5, z: -8, r: 4.2, water: true }],
-  fogata: [{ kind: 'circle', x: -3.8, z: -5.2, r: 2.6, water: false }]
+  fogata: [{ kind: 'circle', x: -4.6, z: -6.4, r: 3.2, water: false }]
 }
 export function zoneDistance(zone, x, z) {
   if (zone.kind === 'circle') return Math.hypot(x - zone.x, z - zone.z) - zone.r
