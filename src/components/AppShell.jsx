@@ -46,7 +46,7 @@ export default function AppShell() {
   const acc = useAccount()
 
   return (
-    <div className="shell">
+    <div className="shell" data-route={pathname}>
       <a href="#main" className="sr-only">Saltar al contenido</a>
       <nav className="rail" aria-label="Navegación principal">
         <Link to="/" className="brand">

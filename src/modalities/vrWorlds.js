@@ -1,22 +1,24 @@
+import { mat } from './textures'
+
 // Mundos del Santuario de calma (A-Frame). Todo se genera con primitivas: no hay modelos ni texturas externas.
 // Cada mundo combina cielo en degradado, suelo, vegetación o paisaje, partículas animadas y luz propia.
 
 export const WORLDS = {
   bosque: {
     label: 'Bosque', sound: 'bosque', text: '#0E293D', desc: 'Pinos, un arroyo y luciérnagas entre los árboles.',
-    sky: ['#7FC4EC', '#E4F3FA'], ground: '#4F8A5F', fog: '#CFE8F2', ambient: 0.85, sun: 0.75, sunColor: '#FFF4DC'
+    sky: ['#7FC4EC', '#E4F3FA'], ground: '#4F8A5F', tex: ['grass', 40, '#FFFFFF'], fog: '#CFE8F2', ambient: 0.85, sun: 0.75, sunColor: '#FFF4DC'
   },
   playa: {
     label: 'Playa', sound: 'olas', text: '#0E293D', desc: 'Atardecer, palmeras y olas que van y vienen.',
-    sky: ['#F59E7B', '#FCE6C8'], ground: '#E8D2A2', fog: '#F6E3CF', ambient: 0.9, sun: 0.8, sunColor: '#FFD7A8'
+    sky: ['#F59E7B', '#FCE6C8'], ground: '#E8D2A2', tex: ['sand', 30, '#FFFFFF'], fog: '#F6E3CF', ambient: 0.9, sun: 0.8, sunColor: '#FFD7A8'
   },
   noche: {
     label: 'Noche', sound: 'lluvia', text: '#E7F1F8', desc: 'Una fogata tranquila bajo la aurora y las estrellas.',
-    sky: ['#050B18', '#1B3552'], ground: '#13283B', fog: '#0B1A2A', ambient: 0.45, sun: 0.25, sunColor: '#9FC3FF'
+    sky: ['#050B18', '#1B3552'], ground: '#13283B', tex: ['grass', 40, '#3A4E66'], fog: '#0B1A2A', ambient: 0.45, sun: 0.25, sunColor: '#9FC3FF'
   },
   montana: {
     label: 'Montaña', sound: 'bosque', text: '#0E293D', desc: 'Un lago entre montañas nevadas y nubes lentas.',
-    sky: ['#5DA9E9', '#EAF4FB'], ground: '#6E8F63', fog: '#DCEBF5', ambient: 0.9, sun: 0.8, sunColor: '#FFFFFF'
+    sky: ['#5DA9E9', '#EAF4FB'], ground: '#6E8F63', tex: ['grass', 40, '#D9E6C8'], fog: '#DCEBF5', ambient: 0.9, sun: 0.8, sunColor: '#FFFFFF'
   },
   espacio: {
     label: 'Espacio', sound: 'olas', text: '#E7F1F8', desc: 'Flotas sobre una plataforma entre planetas y nebulosas.',
@@ -24,7 +26,7 @@ export const WORLDS = {
   },
   jardin: {
     label: 'Jardín zen', sound: 'lluvia', text: '#0E293D', desc: 'Cerezos, faroles de piedra y un estanque con peces koi.',
-    sky: ['#F7C6D9', '#FDF1F5'], ground: '#E9E1CF', fog: '#F6E8EE', ambient: 0.95, sun: 0.6, sunColor: '#FFE9F1'
+    sky: ['#F7C6D9', '#FDF1F5'], ground: '#E9E1CF', tex: ['sand', 26, '#F4EEE2'], fog: '#F6E8EE', ambient: 0.95, sun: 0.6, sunColor: '#FFE9F1'
   }
 }
 
@@ -62,13 +64,13 @@ const clearPath = (x, z) => !(Math.abs(x) < 3 && z < 0 && z > -7)
 const HIDE = 'hide-on-enter-ar'
 
 function pine(x, z, h, r, c1 = '#2F6B4F', c2 = '#3E8462') {
-  return `<a-entity position="${f(x)} 0 ${f(z)}" ${HIDE}><a-cylinder radius="0.13" height="1" position="0 0.5 0" color="#6B4F3A"></a-cylinder><a-cone radius-bottom="${f(r)}" radius-top="0" height="${f(h)}" position="0 ${f(0.8 + h / 2)} 0" color="${c1}"></a-cone><a-cone radius-bottom="${f(r * 0.72)}" radius-top="0" height="${f(h * 0.7)}" position="0 ${f(0.8 + h * 0.75)} 0" color="${c2}"></a-cone></a-entity>`
+  return `<a-entity position="${f(x)} 0 ${f(z)}" ${HIDE}><a-cylinder radius="0.13" height="1" position="0 0.5 0" ${mat('bark', { repeat: 1 })}></a-cylinder><a-cone radius-bottom="${f(r)}" radius-top="0" height="${f(h)}" position="0 ${f(0.8 + h / 2)} 0" color="${c1}"></a-cone><a-cone radius-bottom="${f(r * 0.72)}" radius-top="0" height="${f(h * 0.7)}" position="0 ${f(0.8 + h * 0.75)} 0" color="${c2}"></a-cone></a-entity>`
 }
 function roundTree(x, z, s, leaf = '#5AA469') {
-  return `<a-entity position="${f(x)} 0 ${f(z)}" scale="${f(s)} ${f(s)} ${f(s)}" ${HIDE}><a-cylinder radius="0.14" height="1.4" position="0 0.7 0" color="#7A5A40"></a-cylinder><a-sphere radius="0.9" position="0 2 0" color="${leaf}"></a-sphere><a-sphere radius="0.65" position="0.5 1.7 0.2" color="${leaf}"></a-sphere><a-sphere radius="0.6" position="-0.45 1.75 -0.2" color="${leaf}"></a-sphere></a-entity>`
+  return `<a-entity position="${f(x)} 0 ${f(z)}" scale="${f(s)} ${f(s)} ${f(s)}" ${HIDE}><a-cylinder radius="0.14" height="1.4" position="0 0.7 0" ${mat('bark', { repeat: 1 })}></a-cylinder><a-sphere radius="0.9" position="0 2 0" ${mat('moss', { repeat: 2, color: leaf })}></a-sphere><a-sphere radius="0.65" position="0.5 1.7 0.2" ${mat('moss', { repeat: 2, color: leaf })}></a-sphere><a-sphere radius="0.6" position="-0.45 1.75 -0.2" ${mat('moss', { repeat: 2, color: leaf })}></a-sphere></a-entity>`
 }
-function rock(x, z, s, c = '#8C969E') {
-  return `<a-dodecahedron radius="${f(s)}" position="${f(x)} ${f(s * 0.35)} ${f(z)}" rotation="${f(s * 40)} ${f(s * 90)} 0" color="${c}" ${HIDE}></a-dodecahedron>`
+function rock(x, z, s, c = '#FFFFFF') {
+  return `<a-dodecahedron radius="${f(s)}" position="${f(x)} ${f(s * 0.35)} ${f(z)}" rotation="${f(s * 40)} ${f(s * 90)} 0" scale="1 0.7 1" ${mat('stone', { repeat: 1, color: c })} ${HIDE}></a-dodecahedron>`
 }
 function cloud(x, y, z, s, dur) {
   return `<a-entity position="${f(x)} ${f(y)} ${f(z)}" scale="${f(s)} ${f(s * 0.6)} ${f(s)}" animation="property: position; to: ${f(x + 14)} ${f(y)} ${f(z)}; dur: ${dur}; dir: alternate; loop: true; easing: easeInOutSine" ${HIDE}>
@@ -120,7 +122,7 @@ const BUILDERS = {
       const lean = (i % 2 ? 1 : -1) * (6 + r() * 6)
       let leaves = ''
       for (let k = 0; k < 7; k++) leaves += `<a-cone radius-bottom="0.35" radius-top="0.02" height="2.4" position="0 0 0" rotation="${f(60 + r() * 20)} ${k * 51} 0" color="${k % 2 ? '#3E9B5E' : '#2F8550'}"></a-cone>`
-      o += `<a-entity position="${x} 0 ${z}" rotation="0 0 ${f(lean)}" ${HIDE}><a-cylinder radius="0.16" radius-top="0.1" height="4.6" position="0 2.3 0" color="#8B6B47"></a-cylinder><a-entity position="0 4.6 0" animation="property: rotation; to: 0 0 4; dir: alternate; loop: true; dur: 2800; easing: easeInOutSine">${leaves}<a-sphere radius="0.18" position="0.2 -0.2 0" color="#6B4F2E"></a-sphere></a-entity></a-entity>`
+      o += `<a-entity position="${x} 0 ${z}" rotation="0 0 ${f(lean)}" ${HIDE}><a-cylinder radius="0.16" radius-top="0.1" height="4.6" position="0 2.3 0" ${mat('bark', { repeat: 2, color: '#E8D3B8' })}></a-cylinder><a-entity position="0 4.6 0" animation="property: rotation; to: 0 0 4; dir: alternate; loop: true; dur: 2800; easing: easeInOutSine">${leaves}<a-sphere radius="0.18" position="0.2 -0.2 0" color="#6B4F2E"></a-sphere></a-entity></a-entity>`
     })
     for (let i = 0; i < 12; i++) { const [x, z] = ring(r, 2.5, 9); if (clearPath(x, z)) o += `<a-sphere radius="${f(0.08 + r() * 0.08)}" position="${f(x)} 0.04 ${f(z)}" scale="1 0.4 1" color="${['#F7E1D7', '#F1B9A1', '#FFFFFF'][i % 3]}" ${HIDE}></a-sphere>` }
     o += `<a-entity position="-3.5 0 -1.5" ${HIDE}><a-cylinder radius="0.04" height="2.4" position="0 1.2 0" color="#EDEDED"></a-cylinder><a-cone radius-bottom="1.4" radius-top="0.05" height="0.6" position="0 2.4 0" color="#F28F6B"></a-cone></a-entity>`
@@ -201,7 +203,7 @@ const BUILDERS = {
     sakura.forEach(([x, z]) => {
       let blossoms = ''
       for (let k = 0; k < 6; k++) blossoms += `<a-sphere radius="${f(0.7 + r() * 0.5)}" position="${f(r() * 2 - 1)} ${f(2.4 + r() * 1.2)} ${f(r() * 2 - 1)}" color="${k % 2 ? '#F7B7CC' : '#F9CADA'}"></a-sphere>`
-      o += `<a-entity position="${x} 0 ${z}" ${HIDE}><a-cylinder radius="0.18" height="2.6" position="0 1.3 0" rotation="0 0 6" color="#5B4034"></a-cylinder>${blossoms}</a-entity>`
+      o += `<a-entity position="${x} 0 ${z}" ${HIDE}><a-cylinder radius="0.18" height="2.6" position="0 1.3 0" rotation="0 0 6" ${mat('bark', { repeat: 1 })}></a-cylinder>${blossoms}</a-entity>`
       for (let k = 0; k < 6; k++) {
         const px = x + r() * 3 - 1.5
         const pz = z + r() * 3 - 1.5
@@ -232,4 +234,47 @@ export function breathParticles() {
     o += `<a-sphere radius="0.035" position="${f(Math.cos(a) * 1.05)} ${f(Math.sin(a) * 1.05)} 0" material="shader: flat; color: #CFE8FF; opacity: 0.8; transparent: true" animation="property: material.opacity; from: 0.2; to: 0.9; dir: alternate; loop: true; dur: 2000; delay: ${i * 125}"></a-sphere>`
   }
   return o + '</a-entity>'
+}
+
+export function groundMaterial(w) {
+  if (!w.ground) return 'color: #000000'
+  if (!w.tex) return `color: ${w.ground}`
+  const [k, rep, color] = w.tex
+  return `src: #tx-${k}; normalMap: #tx-${k}-n; repeat: ${rep} ${rep}; normalTextureRepeat: ${rep} ${rep}; roughness: 0.95; color: ${color}`
+}
+
+// Mini santuario para realidad aumentada: piedra, musgo, bonsái, cuenco de agua, vela y la esfera de respiración
+export function arSanctuary(id = 'ar-sanctuary', extra = '') {
+  let pebbles = ''
+  const r = rng(91)
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2 + r() * 0.3
+    pebbles += `<a-dodecahedron radius="${f(0.03 + r() * 0.03)}" position="${f(Math.cos(a) * 0.62)} 0.03 ${f(Math.sin(a) * 0.62)}" scale="1 0.55 1" ${mat('stone', { color: '#E8E8E8' })}></a-dodecahedron>`
+  }
+  return `<a-entity id="${id}" ${extra}>
+    <a-cylinder radius="0.55" height="0.1" position="0 0.05 0" segments-radial="48" ${mat('stone', { repeat: 2, rough: 0.85 })} shadow="receive: true"></a-cylinder>
+    <a-cylinder radius="0.5" height="0.02" position="0 0.11 0" segments-radial="48" ${mat('sand', { repeat: 2, rough: 1 })}></a-cylinder>
+    ${pebbles}
+    <a-sphere radius="0.12" position="-0.28 0.12 0.12" scale="1.3 0.35 1" ${mat('moss', { repeat: 1 })}></a-sphere>
+    <a-sphere radius="0.09" position="0.3 0.12 0.22" scale="1.4 0.3 1" ${mat('moss', { repeat: 1 })}></a-sphere>
+    <a-entity position="0.24 0.12 -0.18">
+      <a-cylinder radius="0.025" radius-top="0.018" height="0.22" position="0 0.11 0" rotation="0 0 -10" ${mat('bark')}></a-cylinder>
+      <a-cylinder radius="0.016" height="0.14" position="0.05 0.22 0" rotation="0 0 -55" ${mat('bark')}></a-cylinder>
+      <a-sphere radius="0.09" position="0.12 0.27 0" scale="1.2 0.7 1" ${mat('moss', { color: '#9BCB6B' })}></a-sphere>
+      <a-sphere radius="0.08" position="-0.02 0.3 0.02" scale="1.1 0.7 1" ${mat('moss', { color: '#9BCB6B' })}></a-sphere>
+    </a-entity>
+    <a-entity position="-0.22 0.12 -0.2">
+      <a-cylinder radius="0.11" height="0.05" position="0 0.025 0" segments-radial="32" ${mat('stone', { color: '#B9B2A6', rough: 0.6 })}></a-cylinder>
+      <a-circle radius="0.095" rotation="-90 0 0" position="0 0.052 0" ${mat('water', { rough: 0.05, metal: 0.25, extra: 'opacity: 0.9; transparent: true' })} animation="property: material.offset; from: 0 0; to: 1 1; loop: true; dur: 30000; easing: linear"></a-circle>
+    </a-entity>
+    <a-entity position="-0.05 0.12 0.28">
+      <a-cylinder radius="0.035" height="0.12" position="0 0.06 0" ${mat('wax', { rough: 0.5 })}></a-cylinder>
+      <a-cone radius-bottom="0.012" radius-top="0" height="0.05" position="0 0.145 0" material="shader: flat; color: #FFC96B" animation="property: scale; to: 0.85 1.3 0.85; dir: alternate; loop: true; dur: 240"></a-cone>
+      <a-entity light="type: point; color: #FFB561; intensity: 0.7; distance: 1.6" position="0 0.2 0" animation="property: light.intensity; from: 0.5; to: 0.85; dir: alternate; loop: true; dur: 260"></a-entity>
+    </a-entity>
+    <a-entity id="${id}-orb" position="0 0.5 0" scale="0.7 0.7 0.7">
+      <a-sphere radius="0.16" material="color: #BFE3FF; metalness: 0.1; roughness: 0.05; opacity: 0.55; transparent: true; emissive: #2F86D6; emissiveIntensity: 0.35"></a-sphere>
+      <a-sphere radius="0.07" material="shader: flat; color: #E8F5FF; opacity: 0.9; transparent: true"></a-sphere>
+    </a-entity>
+  </a-entity>`
 }

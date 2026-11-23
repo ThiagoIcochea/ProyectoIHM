@@ -56,6 +56,7 @@ export function ChatPanel({ compact = false, id = 'chat' }) {
     if (!draft.trim()) return
     send(draft)
     setDraft('')
+    document.getElementById(`${id}-input`)?.style.removeProperty('height')
   }
 
   return (
@@ -117,11 +118,15 @@ export function ChatPanel({ compact = false, id = 'chat' }) {
           id={`${id}-input`}
           rows={1}
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => {
+            setDraft(e.target.value)
+            e.target.style.height = 'auto'
+            e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) submit(e)
           }}
-          placeholder="Escribe cómo te sientes…"
+          placeholder="Escribe aquí…"
           maxLength={1000}
         />
         <button type="button" className="icon-btn" onClick={v.toggleListening} aria-label="Hablar" style={{ color: v.status === 'listening' ? 'var(--success)' : 'var(--ink-2)' }}>
