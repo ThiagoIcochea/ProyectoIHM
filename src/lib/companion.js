@@ -1,7 +1,7 @@
 // Wayra, la viscacha: compañera de la sala personal que ayuda a pensar con preguntas, sin dar sermones.
 import { chatComplete, hasKey } from './groq'
 import { detectCrisis, CRISIS_REPLY } from './crisis'
-import { norm } from './intents'
+import { reflectReply } from './reflect'
 
 const PROMPT = `Eres Wayra, una viscacha andina amable que acompaña a adolescentes y jóvenes en Perú dentro de un espacio de calma en realidad virtual.
 Tu papel es ayudar a pensar, no aconsejar ni diagnosticar:
@@ -10,7 +10,8 @@ Tu papel es ayudar a pensar, no aconsejar ni diagnosticar:
 - Si se queda en blanco, propón respirar juntos o nombrar tres cosas que ve.
 - Puedes mencionar con ternura algo de los Andes (las rocas, el viento, el sol) muy de vez en cuando.
 - No eres psicóloga. Si hay riesgo (autolesión, suicidio, violencia, abuso), pide hablar ya con un adulto de confianza o con la Línea 113 opción 5.
-- Sin emojis, sin listas.`
+- Sin emojis, sin listas.
+- Responde a lo que la persona acaba de decir, con sus detalles. No repitas literalmente su frase ni tus respuestas anteriores.`
 
 const history = []
 
@@ -45,11 +46,7 @@ export async function askWayra(text) {
       reply = await chatComplete([{ role: 'system', content: PROMPT }, ...history.slice(-10)], { maxTokens: 160 })
     } catch { /* sin IA: respuesta local */ }
   }
-  if (!reply) {
-    const n = norm(t)
-    const hit = FALLBACK.find((f) => f.re.test(n))
-    reply = pick(hit ? hit.a : GENERIC)
-  }
+  if (!reply) reply = reflectReply(t, { voice: 'wayra' })
   history.push({ role: 'assistant', content: reply })
   return reply
 }

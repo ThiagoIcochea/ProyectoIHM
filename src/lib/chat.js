@@ -5,6 +5,7 @@ import { chatComplete, hasKey, SYSTEM_PROMPT, explainError } from './groq'
 import { detectCrisis, CRISIS_REPLY } from './crisis'
 import { EMOTIONS } from './emotions'
 import { norm } from './intents'
+import { reflectReply, replyActions } from './reflect'
 import { toast } from '../components/Toast'
 
 // ---------- Respuestas sin IA: por tema, sin repetirse y con una acción concreta ----------
@@ -41,14 +42,8 @@ const GENERIC = [
   'Tiene sentido que te sientas así. Cuéntame un poco más, sin apuro.'
 ]
 
-export function fallbackReply(text, history = []) {
-  const t = norm(text).replace(/\bno (me )?(siento|estoy|ando) (bien|tranquil\w*)\b/, 'estoy mal')
-  const recent = history.filter((m) => m.role === 'assistant').slice(-6).map((m) => m.content)
-  const topic = TOPICS.find((x) => x.re.test(t))
-  if (topic) return { content: pick(topic.replies, recent), actions: topic.actions || [] }
-  const e = EMOTIONS.find((x) => x.re.test(t))
-  if (e) return { content: pick(TOPICS.find((x) => x.id === e.id)?.replies || GENERIC, recent), actions: [] }
-  return { content: pick(GENERIC, recent), actions: [] }
+export function fallbackReply(text) {
+  return { content: reflectReply(text), actions: replyActions(text) }
 }
 
 const ACTION_HINT = /\b(respir\w*)\b/i

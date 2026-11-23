@@ -5,6 +5,7 @@ import { useFreeText, useVoice, useVoiceCommands } from '../lib/voice'
 import { setState } from '../lib/store'
 import { hasKey } from '../lib/groq'
 import { HowTo, Notice, VoiceHints } from '../components/ui'
+import AiKeyNotice from '../components/AiKeyNotice'
 import { MODALITIES } from '../lib/modalities'
 
 const LABEL = { idle: 'Toca la esfera para empezar', listening: 'Te escucho', processing: 'Pensando', speaking: 'Hablando', unsupported: 'Tu navegador no permite voz' }
@@ -82,6 +83,7 @@ export default function VoiceMode() {
         </Notice>
       )}
 
+      <AiKeyNotice who="La conversación por voz" />
       <div className="voice-stage">
         <button className="voice-orb" data-status={v.status} style={{ '--lvl': lvl }} onClick={on ? (v.status === 'speaking' ? v.silence : end) : begin} aria-label={on ? 'Terminar conversación por voz' : 'Empezar conversación por voz'}>
           {on ? <Square size={44} /> : <Mic size={56} />}

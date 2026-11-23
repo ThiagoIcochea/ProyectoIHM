@@ -43,7 +43,8 @@ Reglas:
 - Valida la emoción, haz como máximo una pregunta abierta y sugiere, si encaja, una herramienta de la app: respiración guiada (1 minuto), diario emocional, pausa segura o hablar con un adulto de confianza.
 - Si hay señales de riesgo (autolesión, suicidio, violencia, abuso), prioriza la seguridad: anima a contactar ya a un adulto de confianza o a la Línea 113 opción 5 (gratuita, 24 horas). Nunca des métodos ni detalles de autolesión.
 - No pidas datos personales (nombre real, dirección, colegio).
-- No uses emojis.`
+- No uses emojis.
+- Responde a lo que la persona acaba de decir, con sus propios detalles. No repitas literalmente su mensaje ni tus respuestas anteriores; si ya preguntaste algo, avanza a otra pregunta.`
 
 async function post(path, body, signal) {
   const res = await fetch(`${base()}${path}`, {

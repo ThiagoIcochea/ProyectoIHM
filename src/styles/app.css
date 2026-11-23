@@ -624,3 +624,6 @@ input[type='range'] { width: 100%; accent-color: var(--primary); height: 32px; }
 .tabs-scroll { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--border); }
 .tab-btn { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--ink-2); font-weight: 650; cursor: pointer; }
 .tab-btn[aria-selected='true'] { color: var(--primary); border-bottom-color: var(--primary); }
+/* Santuario en el móvil: deja ver y desplazar la información de abajo */
+.vr-wrap .a-canvas { touch-action: pan-y !important; }
+@media (max-width: 959px) { .vr-wrap { height: min(72dvh, calc(100dvh - var(--header-h) - var(--nav-h) - 40px)); } }

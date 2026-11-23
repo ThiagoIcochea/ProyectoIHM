@@ -6,6 +6,7 @@ import { useRoom, createRoom, joinRoom, leaveRoom, resumeRoom, sendPose, sendRea
 import { avatarHTML } from './avatars'
 import { useStore } from '../lib/store'
 import AvatarEditor from '../components/AvatarEditor'
+import AiKeyNotice from '../components/AiKeyNotice'
 import { askWayra } from '../lib/companion'
 import { viscachaHTML } from './vrWorlds'
 import { Sheet, Switch } from '../components/ui'
@@ -543,6 +544,7 @@ export default function Immersive() {
             {isTouch && motion && <button className="btn btn-sm" onClick={() => { recenter(); setMenuOpen(false) }}><LocateFixed size={16} /> Recentrar la vista</button>}
             <button className="btn btn-sm" onClick={() => { setMenuOpen(false); setRoomOpen(true) }}><Users size={16} /> {inRoom ? `Sala ${room.code}` : 'Sala compartida'}</button>
           </div>
+          {!inRoom && <AiKeyNotice who="Wayra" />}
           {!inRoom && <p className="muted small">Wayra, la viscacha, te acompaña en tu sala personal. Habla con el micrófono de siempre (o tócala) y te responderá con su voz.</p>}
         </div>
       </Sheet>

@@ -15,6 +15,21 @@ export const supportsTTS = typeof window !== 'undefined' && 'speechSynthesis' in
 const SCALES = [100, 130, 160, 200]
 
 const VoiceCtx = createContext(null)
+// En Android, Chrome repite el texto acumulado en modo continuo; ahí se escucha frase por frase
+const IS_ANDROID = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent)
+const simplify = (t) => norm(t).replace(/\s+/g, ' ').trim()
+// ¿El texto escuchado es en realidad la voz de la app que el micrófono volvió a captar?
+function isEcho(heard, spoken) {
+  if (!spoken) return false
+  const h = simplify(heard)
+  const s0 = simplify(spoken)
+  if (!h || h.length < 6) return false
+  if (s0.includes(h)) return true
+  const hw = h.split(' ')
+  const sw = new Set(s0.split(' '))
+  const overlap = hw.filter((w) => sw.has(w)).length / hw.length
+  return hw.length >= 4 && overlap > 0.75
+}
 export const useVoice = () => useContext(VoiceCtx)
 
 // Voces: se prefieren voces femeninas naturales en español (Edge trae "Camila" de Perú con calidad neural).
@@ -76,6 +91,8 @@ export function VoiceProvider({ children }) {
   const pendingChatRef = useRef(null)
   const mediaRef = useRef(null)
   const restartRef = useRef(null)
+  const lastSpokenRef = useRef({ text: '', until: 0 })
+  const lastFinalRef = useRef({ text: '', at: 0 })
   const locRef = useRef(location.pathname)
   locRef.current = location.pathname
 
@@ -92,14 +109,17 @@ export function VoiceProvider({ children }) {
     u.rate = pr.rate
     u.pitch = pr.pitch
     u.onstart = () => onStart?.()
+    lastSpokenRef.current = { text, until: Date.now() + 60000 }
     speakingRef.current = true
     try { recRef.current?.abort() } catch { /* nada */ }
     setStatus('speaking')
     u.onend = u.onerror = () => {
       speakingRef.current = false
+      // Durante 4 s se descarta lo que suene igual a lo que la app acaba de decir (eco del parlante)
+      lastSpokenRef.current = { text, until: Date.now() + 4000 }
       setStatus(wantRef.current ? 'listening' : 'idle')
       onEnd?.()
-      if (wantRef.current) setTimeout(() => restartRef.current?.(), 250)
+      if (wantRef.current) setTimeout(() => restartRef.current?.(), 700)
     }
     speechSynthesis.speak(u)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -170,6 +190,19 @@ export function VoiceProvider({ children }) {
       let text = raw.trim()
       if (!getState().handsFree) wantRef.current = false
       if (!text) return
+      // Ignorar el eco de la propia voz de la app y las frases repetidas por el reconocedor
+      const echo = lastSpokenRef.current
+      if (Date.now() < echo.until && isEcho(text, echo.text)) return
+      const prev = lastFinalRef.current
+      const st = simplify(text)
+      if (st === prev.text && Date.now() - prev.at < 4000) return
+      if (prev.text && st.startsWith(prev.text) && Date.now() - prev.at < 8000) {
+        // Android a veces entrega "frase anterior + frase nueva": se queda solo con lo nuevo
+        const rest = st.slice(prev.text.length).trim()
+        if (!rest) return
+        text = rest
+      }
+      lastFinalRef.current = { text: st, at: Date.now() }
       if (getState().wakeWord && getState().handsFree && !dictationRef.current) {
         const n = norm(text)
         if (!/^(oye )?escucha\b/.test(n)) return
@@ -234,10 +267,11 @@ export function VoiceProvider({ children }) {
     const rec = new SR()
     rec.lang = 'es-PE'
     rec.interimResults = true
-    rec.continuous = getState().handsFree
+    rec.continuous = getState().handsFree && !IS_ANDROID
     rec.maxAlternatives = 1
     rec.onstart = () => setStatus('listening')
     rec.onresult = (e) => {
+      if (speakingRef.current) return
       let finalText = ''
       let inter = ''
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -260,7 +294,7 @@ export function VoiceProvider({ children }) {
     rec.onend = () => {
       setInterim('')
       if (wantRef.current && getState().handsFree && !speakingRef.current) {
-        setTimeout(() => wantRef.current && startRec(), 200)
+        setTimeout(() => wantRef.current && !speakingRef.current && startRec(), IS_ANDROID ? 350 : 200)
       } else if (!speakingRef.current) {
         wantRef.current = getState().handsFree && wantRef.current
         setStatus(wantRef.current ? 'listening' : 'idle')
