@@ -239,7 +239,7 @@ export default function Watch() {
               'Laptop: gira la rueda del mouse o usa las flechas ↑ ↓ como si fuera la corona digital.',
               'Móvil: desliza hacia arriba o abajo sobre la esfera. La vibración funciona en Android.',
               'Reloj real: abre esta misma dirección en el navegador del reloj (Wear OS) y toca Pantalla completa.',
-              'El pulso viene de la pulsera del Hogar IoT: si conectas una banda Bluetooth allí, aquí verás tu pulso real.'
+              'Reloj real por Bluetooth: en Perfil → Mis dispositivos vincula tu reloj; si comparte su pulso, aparece aquí y puedes enviarle avisos.'
             ]}
           />
           <VoiceHints items={['respirar', 'siguiente', 'SOS', 'mi pulso', 'qué hora es']} />

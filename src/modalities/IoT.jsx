@@ -188,7 +188,7 @@ export default function IoT() {
             band.source === 'ble' ? (
               <button className="btn btn-sm" onClick={disconnectBLE}>Desconectar</button>
             ) : (
-              <button className="btn btn-sm" onClick={connectBLE}><Bluetooth size={16} /> Conectar pulsera real</button>
+              <button className="btn btn-sm" onClick={() => navigate('/dispositivos')}><Bluetooth size={16} /> Conectar reloj o pulsera real</button>
             )
           ) : (
             <span className="muted small">Bluetooth web no disponible aquí (usa Chrome en Android o laptop).</span>

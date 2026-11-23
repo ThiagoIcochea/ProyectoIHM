@@ -13,6 +13,10 @@ import Breathe from './screens/Breathe'
 import Journal from './screens/Journal'
 import Help from './screens/Help'
 import Profile from './screens/Profile'
+import Account from './screens/Account'
+import DeleteAccount from './screens/DeleteAccount'
+import Devices from './screens/Devices'
+import { purgeExpired } from './lib/auth'
 import Watch from './modalities/Watch'
 import Dual from './modalities/Dual'
 import VoiceMode from './modalities/VoiceMode'
@@ -22,6 +26,8 @@ import IoT from './modalities/IoT'
 const Immersive = lazy(() => import('./modalities/Immersive'))
 const Map3D = lazy(() => import('./modalities/Map3D'))
 const Gestures = lazy(() => import('./modalities/Gestures'))
+
+purgeExpired()
 
 function useA11yAttributes() {
   const { theme, textScale, highContrast, reduceMotion } = useStore()
@@ -58,11 +64,12 @@ export default function App() {
 
   return (
     <VoiceProvider>
-      {!onboarded && location.pathname !== '/bienvenida' ? (
+      {!onboarded && location.pathname !== '/bienvenida' && location.pathname !== '/cuenta' ? (
         <Navigate to="/bienvenida" replace />
       ) : (
         <Routes>
           <Route path="/bienvenida" element={<Onboarding />} />
+          <Route path="/cuenta" element={<Account />} />
           <Route element={<AppShell />}>
             <Route index element={<Home />} />
             <Route path="explorar" element={<Explore />} />
@@ -72,6 +79,8 @@ export default function App() {
             <Route path="diario" element={<Journal />} />
             <Route path="ayuda" element={<Help />} />
             <Route path="perfil" element={<Profile />} />
+            <Route path="perfil/eliminar" element={<DeleteAccount />} />
+            <Route path="dispositivos" element={<Devices />} />
             <Route path="m/reloj" element={<Watch />} />
             <Route path="m/plegable" element={<Dual />} />
             <Route path="m/voz" element={<VoiceMode />} />

@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
-import { Eye, EyeOff, KeyRound, CheckCircle2, AlertTriangle, Mic, Accessibility, UserRound, Database } from 'lucide-react'
+import { useLocation, Link, useNavigate } from 'react-router-dom'
+import { Eye, EyeOff, KeyRound, CheckCircle2, AlertTriangle, Mic, Accessibility, UserRound, Database, LogIn, LogOut, UserPlus, Download, Trash2, Bluetooth, ChevronRight } from 'lucide-react'
+import { useAccount, logout, exportData, download } from '../lib/auth'
+import { Sheet } from '../components/ui'
 import { resetAll, setState, useStore } from '../lib/store'
 import { testKey, explainError, hasKey } from '../lib/groq'
 import { supportsSR, supportsTTS, useVoice } from '../lib/voice'
 import { Segmented, Switch, Notice } from '../components/ui'
+import { setDeviceKey, getProxy, setProxy, aiSource } from '../lib/groq'
 import { DESTINATIONS } from '../lib/intents'
 import { toast } from '../components/Toast'
 
@@ -15,6 +18,10 @@ export default function Profile() {
   const [key, setKey] = useState(s.groqKey)
   const [show, setShow] = useState(false)
   const [test, setTest] = useState(null)
+  const acc = useAccount()
+  const navigate = useNavigate()
+  const [wipe, setWipe] = useState(false)
+  const [proxy, setProxyL] = useState(getProxy())
 
   useEffect(() => {
     if (hash) document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'start' })
@@ -22,6 +29,7 @@ export default function Profile() {
 
   const saveKey = async () => {
     setState({ groqKey: key.trim() })
+    setDeviceKey(key.trim())
     if (!key.trim()) return setTest(null)
     setTest('loading')
     try {
@@ -40,12 +48,38 @@ export default function Profile() {
         <p>Tu cuenta es anónima. Todo se guarda solo en este navegador.</p>
       </div>
 
-      <section className="card stack" aria-labelledby="p-alias">
-        <div className="row"><span className="ico-tile"><UserRound size={22} /></span><h2 id="p-alias">Tu apodo</h2></div>
-        <input className="input" aria-label="Apodo" value={s.alias} onChange={(e) => setState({ alias: e.target.value.slice(0, 24) })} placeholder="Sin apodo" />
+      <section className="card stack" aria-labelledby="p-acc" id="cuenta">
+        <div className="row"><span className="ico-tile"><UserRound size={22} /></span><h2 id="p-acc">Cuenta</h2></div>
+        {acc ? (
+          <>
+            <p className="muted">Sesión iniciada como <b style={{ color: 'var(--ink)' }}>{acc.display}</b> · cuenta creada el {new Date(acc.createdAt).toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' })}.</p>
+            <div className="row-wrap">
+              <button className="btn" onClick={() => { logout(); navigate('/', { replace: true }) }}><LogOut size={18} /> Cerrar sesión</button>
+              <button className="btn" onClick={() => download(`escucha-${acc.username}.json`, exportData(), 'application/json')}><Download size={18} /> Descargar mis datos</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="muted">Estás usando Escucha sin cuenta. Crea una para separar tus datos de los de otras personas que usen este dispositivo y protegerlos con contraseña.</p>
+            <div className="row-wrap">
+              <Link className="btn btn-primary" to="/cuenta?modo=crear"><UserPlus size={18} /> Crear cuenta</Link>
+              <Link className="btn" to="/cuenta"><LogIn size={18} /> Iniciar sesión</Link>
+            </div>
+          </>
+        )}
+        <div className="field">
+          <label className="label" htmlFor="alias-in">Apodo que verás en la app</label>
+          <input id="alias-in" className="input" value={s.alias} onChange={(e) => setState({ alias: e.target.value.slice(0, 24) })} placeholder="Sin apodo" />
+        </div>
       </section>
 
-      <section className="card stack" aria-labelledby="p-a11y" id="accesibilidad">
+      <Link to="/dispositivos" className="card card-link row">
+        <span className="ico-tile"><Bluetooth size={22} /></span>
+        <span style={{ flex: 1 }}><b>Mis dispositivos</b><br /><span className="muted small">Vincula tu reloj o pulsera por Bluetooth y recibe avisos</span></span>
+        <ChevronRight size={18} className="muted" aria-hidden="true" />
+      </Link>
+
+            <section className="card stack" aria-labelledby="p-a11y" id="accesibilidad">
         <div className="row"><span className="ico-tile"><Accessibility size={22} /></span><h2 id="p-a11y">Accesibilidad</h2></div>
         <div className="field">
           <span className="label">Tamaño de texto</span>
@@ -99,31 +133,46 @@ export default function Profile() {
         </div>
         <div className="row-wrap" style={{ alignItems: 'center' }}>
           <button className="btn btn-primary" onClick={saveKey} disabled={test === 'loading'}>{test === 'loading' ? 'Verificando…' : 'Guardar y probar'}</button>
-          {s.groqKey && <button className="btn btn-ghost" onClick={() => { setKey(''); setState({ groqKey: '' }); setTest(null) }}>Quitar clave</button>}
+          {s.groqKey && <button className="btn btn-ghost" onClick={() => { setKey(''); setState({ groqKey: '' }); setDeviceKey(''); setTest(null) }}>Quitar clave</button>}
           {test === 'ok' && <span className="tag tag-live"><CheckCircle2 size={14} /> Funciona</span>}
           {test && test !== 'ok' && test !== 'loading' && <span className="tag tag-sim">{test}</span>}
-          {!test && <span className="tag">{hasKey() ? 'Clave configurada' : 'Sin clave: modo básico'}</span>}
+          {!test && <span className={`tag ${hasKey() ? 'tag-live' : 'tag-sim'}`}>{hasKey() ? `IA activa (${aiSource()})` : 'Sin IA: modo básico'}</span>}
         </div>
+        <details className="howto">
+          <summary>Opciones avanzadas: proxy</summary>
+          <div className="stack-sm">
+            <p className="muted small">Si tu navegador bloquea la conexión directa con Groq, o no quieres guardar la clave en el navegador, publica el proxy incluido en la carpeta <code>proxy/</code> del repositorio (Cloudflare Workers, gratis) y pega aquí su dirección.</p>
+            <div className="row" style={{ gap: 8 }}>
+              <input className="input" aria-label="Dirección del proxy" value={proxy} onChange={(e) => setProxyL(e.target.value)} placeholder="https://escucha-ia.tu-cuenta.workers.dev" spellCheck={false} />
+              <button className="btn" onClick={() => { setProxy(proxy); setState({}); toast(proxy ? 'Proxy guardado' : 'Proxy quitado') }}>Guardar</button>
+            </div>
+          </div>
+        </details>
       </section>
 
       <section className="card stack" aria-labelledby="p-data">
-        <div className="row"><span className="ico-tile danger"><Database size={22} /></span><h2 id="p-data">Tus datos</h2></div>
+        <div className="row"><span className="ico-tile danger"><Database size={22} /></span><h2 id="p-data">Cuenta y datos</h2></div>
         <p className="muted small">{s.checkins.length} registros de emociones · {s.journal.length} entradas de diario · {s.chat.length} mensajes.</p>
         <div className="row-wrap">
           <button className="btn" onClick={() => setState({ coachDone: false })}>Ver otra vez la guía</button>
-          <button
-            className="btn btn-danger"
-            onClick={() => {
-              if (window.confirm('¿Borrar todos tus datos de este dispositivo? No se puede deshacer.')) {
-                resetAll()
-                location.hash = '#/bienvenida'
-              }
-            }}
-          >
-            Borrar todo
-          </button>
+          {acc ? (
+            <Link className="btn btn-ghost" style={{ color: 'var(--danger)' }} to="/perfil/eliminar"><Trash2 size={18} /> Eliminar cuenta</Link>
+          ) : (
+            <button className="btn btn-ghost" style={{ color: 'var(--danger)' }} onClick={() => setWipe(true)}><Trash2 size={18} /> Borrar datos de este dispositivo</button>
+          )}
         </div>
+        {acc && <p className="muted small">Eliminar la cuenta pasa por varios pasos de confirmación y te da 30 días para arrepentirte.</p>}
       </section>
+
+      <Sheet open={wipe} onClose={() => setWipe(false)} title="¿Borrar tus datos sin cuenta?">
+        <div className="stack">
+          <p className="muted">Se borrarán de este navegador tu diario, tus registros de emociones y tu chat del modo sin cuenta. No se puede deshacer.</p>
+          <div className="row-wrap">
+            <button className="btn btn-danger" onClick={() => { resetAll({ onboarded: true, coachDone: true }); setWipe(false); toast('Datos borrados') }}>Sí, borrar</button>
+            <button className="btn" onClick={() => setWipe(false)}>Cancelar</button>
+          </div>
+        </div>
+      </Sheet>
     </div>
   )
 }

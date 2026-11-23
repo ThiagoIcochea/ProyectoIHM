@@ -57,7 +57,9 @@ export default function Onboarding() {
       { re: /\b(siguiente|continuar|continua|adelante)\b/, label: 'siguiente', run: next },
       { re: /\b(atras|anterior)\b/, label: 'atrás', run: prev },
       { re: /\b(omitir|saltar)\b/, label: 'omitir', run: () => setI(STEPS.length) },
-      { re: /\b(comenzar|empezar|listo|entrar)\b/, label: 'comenzar', run: finish },
+      { re: /\b(comenzar|empezar|listo|sin cuenta)\b/, label: 'comenzar', run: finish },
+      { re: /\b(crear (una )?cuenta|registrarme)\b/, label: 'crear cuenta', run: () => { finish(); navigate('/cuenta?modo=crear') } },
+      { re: /\b(iniciar sesion|tengo cuenta|entrar)\b/, label: 'iniciar sesión', run: () => { finish(); navigate('/cuenta') } },
       { re: /\b(?:me llamo|mi apodo es|llamame)\s+(\w+)/, label: 'mi apodo es…', run: (m) => setAlias(m[1]) }
     ],
     [i, alias]
@@ -114,12 +116,18 @@ export default function Onboarding() {
             </button>
           )}
           <button className="btn btn-primary" style={{ flex: 1 }} onClick={next}>
-            {last ? 'Comenzar' : 'Siguiente'}
+            {last ? 'Continuar sin cuenta' : 'Siguiente'}
           </button>
           <button className="icon-btn" onClick={v.toggleListening} aria-label="Hablar" data-status={v.status} style={{ border: '1px solid var(--border-strong)', width: 48, height: 48, color: v.status === 'listening' ? 'var(--success)' : 'var(--ink)' }}>
             <Mic size={22} />
           </button>
         </div>
+        {last && (
+          <div className="row-wrap">
+            <button className="btn" style={{ flex: 1 }} onClick={() => { finish(); navigate('/cuenta?modo=crear') }}>Crear cuenta</button>
+            <button className="btn" style={{ flex: 1 }} onClick={() => { finish(); navigate('/cuenta') }}>Ya tengo cuenta</button>
+          </div>
+        )}
         {v.heard && <p className="muted small" aria-live="polite">Escuché: “{v.heard}”</p>}
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, Link } from 'react-router-dom'
-import { Send, Mic, Trash2, Sparkles, LifeBuoy, Bot } from 'lucide-react'
+import { Send, Mic, Trash2, Sparkles, LifeBuoy, Bot, Wind, BookOpen } from 'lucide-react'
 import { useChat, SUGGESTIONS } from '../lib/chat'
 import { useFreeText, useVoice, useVoiceCommands } from '../lib/voice'
 import { hasKey } from '../lib/groq'
@@ -62,6 +62,7 @@ export function ChatPanel({ compact = false, id = 'chat' }) {
     <div className="chat" style={{ flex: 1 }}>
       {!compact && (
         <Notice icon={Bot}>
+          <span className={`tag ${ai ? 'tag-live' : 'tag-sim'}`} style={{ marginRight: 6 }}>{ai ? 'IA activa' : 'Modo básico'}</span>
           <b style={{ color: 'var(--ink)' }}>Escucha · Asistente IA.</b> No es un profesional. Puedes pedir apoyo humano desde <Link to="/ayuda">SOS</Link>.
           {!ai && <> Ahora responde en modo básico; para respuestas con IA agrega tu clave en <Link to="/perfil#ia">Perfil</Link>.</>}
         </Notice>
@@ -78,6 +79,13 @@ export function ChatPanel({ compact = false, id = 'chat' }) {
         {messages.map((m) => (
           <div key={m.id} className={`msg ${m.role}${m.crisis ? ' crisis' : ''}`}>
             {m.content}
+            {!m.crisis && m.actions?.length > 0 && (
+              <div className="row-wrap" style={{ marginTop: 10 }}>
+                {m.actions.includes('respirar') && <Link className="btn btn-tint btn-sm" to="/respirar"><Wind size={16} /> Respirar 1 min</Link>}
+                {m.actions.includes('diario') && <Link className="btn btn-tint btn-sm" to="/diario"><BookOpen size={16} /> Abrir diario</Link>}
+                {m.actions.includes('sos') && <Link className="btn btn-tint btn-sm" to="/ayuda"><LifeBuoy size={16} /> Pausa segura</Link>}
+              </div>
+            )}
             {m.crisis && (
               <div style={{ marginTop: 10 }}>
                 <button className="btn btn-danger btn-sm" onClick={() => setCrisis(true)}>

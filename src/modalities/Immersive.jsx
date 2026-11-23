@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Trees, Waves, Moon, Play, Square, Camera, Glasses, Volume2, VolumeX } from 'lucide-react'
+import { Trees, Waves, Moon, Mountain, Orbit, Flower2, Play, Square, Camera, Glasses, Volume2, VolumeX } from 'lucide-react'
+import { WORLDS, buildWorld, skyTexture, breathParticles } from './vrWorlds'
 import { useBreath } from '../lib/breath'
 import { useVoice, useVoiceCommands } from '../lib/voice'
 import { playAmbient, stopAmbient } from '../lib/sound'
@@ -21,71 +22,36 @@ function loadAFrame() {
   return aframePromise
 }
 
-const SCENES = {
-  bosque: { label: 'Bosque', icon: Trees, sky: '#BFE3F5', ground: '#5E9B6E', fog: '#CFE8F2', sound: 'bosque', text: '#0E293D' },
-  playa: { label: 'Playa', icon: Waves, sky: '#FAD9BF', ground: '#E8D2A2', fog: '#F6E3CF', sound: 'olas', text: '#0E293D' },
-  noche: { label: 'Noche', icon: Moon, sky: '#0B1A2A', ground: '#13283B', fog: '#0B1A2A', sound: 'lluvia', text: '#E7F1F8' }
-}
+const ICONS = { bosque: Trees, playa: Waves, noche: Moon, montana: Mountain, espacio: Orbit, jardin: Flower2 }
+const SCENES = Object.fromEntries(Object.entries(WORLDS).map(([k, w]) => [k, { ...w, icon: ICONS[k] }]))
 
-// Números pseudoaleatorios estables para que la escena no cambie en cada render
-function rng(seed) {
-  let x = seed
-  return () => ((x = (x * 16807) % 2147483647) / 2147483647)
-}
-
-function props(kind) {
-  const r = rng(kind === 'bosque' ? 7 : kind === 'playa' ? 11 : 13)
-  let out = ''
-  if (kind === 'bosque') {
-    for (let i = 0; i < 46; i++) {
-      const a = r() * Math.PI * 2
-      const d = 6 + r() * 18
-      const x = (Math.cos(a) * d).toFixed(2)
-      const z = (Math.sin(a) * d).toFixed(2)
-      const h = (2.2 + r() * 2.8).toFixed(2)
-      out += `<a-entity position="${x} 0 ${z}"><a-cylinder radius="0.12" height="1" position="0 0.5 0" color="#6B4F3A"></a-cylinder><a-cone radius-bottom="${(0.9 + r() * 0.6).toFixed(2)}" radius-top="0" height="${h}" position="0 ${(1 + h / 2).toFixed(2)} 0" color="${r() > 0.5 ? '#2F6B4F' : '#3E8462'}"></a-cone></a-entity>`
-    }
-  } else if (kind === 'playa') {
-    out += `<a-plane id="sea" rotation="-90 0 0" position="0 0.05 -22" width="120" height="30" color="#4EA3EF" opacity="0.92" animation="property: position; to: 0 0.18 -22; dir: alternate; dur: 3000; loop: true; easing: easeInOutSine" hide-on-enter-ar></a-plane>`
-    for (let i = 0; i < 8; i++) {
-      out += `<a-sphere radius="${(0.2 + r() * 0.4).toFixed(2)}" position="${(r() * 16 - 8).toFixed(2)} 0.1 ${(-2 - r() * 6).toFixed(2)}" color="#BFA57A" hide-on-enter-ar></a-sphere>`
-    }
-    out += `<a-circle radius="2.4" position="9 9 -40" color="#FFE7B8" material="shader: flat" hide-on-enter-ar></a-circle>`
-  } else {
-    for (let i = 0; i < 160; i++) {
-      const a = r() * Math.PI * 2
-      const e = 0.15 + r() * 1.3
-      const d = 60
-      out += `<a-sphere radius="${(0.06 + r() * 0.12).toFixed(2)}" position="${(Math.cos(a) * Math.cos(e) * d).toFixed(1)} ${(Math.sin(e) * d).toFixed(1)} ${(Math.sin(a) * Math.cos(e) * d).toFixed(1)}" material="shader: flat; color: #F4F9FC" hide-on-enter-ar></a-sphere>`
-    }
-    out += `<a-circle radius="2" position="-10 14 -40" material="shader: flat; color: #E7F1F8" hide-on-enter-ar></a-circle>`
-  }
-  return out
-}
-
-function button3d(id, label, x, y = 0.95) {
-  return `<a-entity id="${id}" class="clickable" position="${x} ${y} -2.4" geometry="primitive: plane; width: 0.9; height: 0.34" material="color: #0966BF; shader: flat; opacity: 0.95" animation__h1="property: scale; to: 1.08 1.08 1; startEvents: mouseenter; dur: 150" animation__h2="property: scale; to: 1 1 1; startEvents: mouseleave; dur: 150"><a-text value="${label}" align="center" color="#FFFFFF" width="3" position="0 0 0.01"></a-text></a-entity>`
+function button3d(id, label, x, y = 0.95, color = '#0966BF', w = 0.9) {
+  return `<a-entity id="${id}" class="clickable" position="${x} ${y} -2.4" geometry="primitive: plane; width: ${w}; height: 0.3" material="color: ${color}; shader: flat; opacity: 0.95" animation__h1="property: scale; to: 1.08 1.08 1; startEvents: mouseenter; dur: 150" animation__h2="property: scale; to: 1 1 1; startEvents: mouseleave; dur: 150"><a-text value="${label}" align="center" color="#FFFFFF" width="2.6" position="0 0 0.01"></a-text></a-entity>`
 }
 
 function sceneHTML(kind) {
   const s = SCENES[kind]
+  const keys = Object.keys(SCENES)
+  const worldButtons = keys.map((k, i) => button3d(`b-${k}`, SCENES[k].label, ((i % 3) - 1) * 1.0, i < 3 ? 0.5 : 0.16, '#24435C', 0.92)).join('')
   return `
   <a-scene embedded xr-mode-ui="enabled: true; XRMode: xr" renderer="antialias: true; colorManagement: true"
-    webxr="optionalFeatures: local-floor, bounded-floor, hand-tracking, hit-test" fog="type: linear; color: ${s.fog}; near: 12; far: 70"
+    webxr="optionalFeatures: local-floor, bounded-floor, hand-tracking, hit-test" ${s.fog ? `fog="type: linear; color: ${s.fog}; near: 14; far: 80"` : ''}
     cursor="rayOrigin: mouse" raycaster="objects: .clickable" loading-screen="enabled: false" device-orientation-permission-ui="enabled: true">
-    <a-sky id="sky" color="${s.sky}" hide-on-enter-ar></a-sky>
-    <a-entity light="type: ambient; intensity: ${kind === 'noche' ? 0.5 : 0.9}"></a-entity>
-    <a-entity light="type: directional; intensity: ${kind === 'noche' ? 0.3 : 0.7}" position="2 6 3"></a-entity>
-    <a-circle id="ground" rotation="-90 0 0" radius="40" color="${s.ground}" hide-on-enter-ar></a-circle>
-    <a-entity id="props">${props(kind)}</a-entity>
-    <a-sphere id="orb" position="0 1.6 -3.2" radius="0.45" scale="0.7 0.7 0.7" material="color: #7CC0F8; emissive: #2F86D6; emissiveIntensity: 0.6; opacity: 0.9; transparent: true"></a-sphere>
+    <a-sky id="sky" src="${skyTexture(s.sky)}" hide-on-enter-ar></a-sky>
+    <a-entity id="amb" light="type: ambient; intensity: ${s.ambient}"></a-entity>
+    <a-entity id="sun" light="type: directional; intensity: ${s.sun}; color: ${s.sunColor}" position="3 8 4"></a-entity>
+    <a-circle id="ground" rotation="-90 0 0" radius="60" color="${s.ground || '#000000'}" visible="${!!s.ground}" hide-on-enter-ar></a-circle>
+    <a-entity id="props">${buildWorld(kind)}</a-entity>
+    <a-cylinder radius="0.9" height="0.06" position="0 0.03 0" material="color: #FFFFFF; opacity: 0.25; transparent: true" hide-on-enter-ar></a-cylinder>
+    <a-sphere id="orb" position="0 1.6 -3.2" radius="0.45" scale="0.7 0.7 0.7" material="color: #7CC0F8; emissive: #2F86D6; emissiveIntensity: 0.7; opacity: 0.92; transparent: true"></a-sphere>
+    <a-entity light="type: point; color: #7CC0F8; intensity: 0.6; distance: 6" position="0 1.6 -3"></a-entity>
     <a-ring position="0 1.6 -3.25" radius-inner="0.78" radius-outer="0.8" material="color: #FFFFFF; shader: flat; opacity: 0.6; transparent: true"></a-ring>
-    <a-text id="phase" value="Mira la esfera y respira" align="center" color="${s.text}" width="5" position="0 2.6 -3.2"></a-text>
-    <a-text id="count" value="" align="center" color="${s.text}" width="8" position="0 0.75 -3.2"></a-text>
-    ${button3d('b-start', 'Respirar', 0, 0.55)}
-    ${button3d('b-bosque', 'Bosque', -1.05, 0.12)}
-    ${button3d('b-playa', 'Playa', 0, 0.12)}
-    ${button3d('b-noche', 'Noche', 1.05, 0.12)}
+    ${breathParticles()}
+    <a-text id="phase" value="Mira la esfera y respira" align="center" color="${s.text}" width="5" position="0 2.65 -3.2"></a-text>
+    <a-text id="desc" value="${s.label}: ${s.desc}" align="center" color="${s.text}" width="3.2" position="0 2.32 -3.2"></a-text>
+    <a-text id="count" value="" align="center" color="#FFFFFF" width="7" position="0 1.6 -2.6"></a-text>
+    ${button3d('b-start', 'Respirar', 0, 0.86, '#0966BF', 1.1)}
+    ${worldButtons}
     <a-entity id="rig" position="0 0 0">
       <a-entity camera look-controls="pointerLockEnabled: false" wasd-controls="acceleration: 18" position="0 1.6 0"></a-entity>
       <a-entity laser-controls="hand: right" raycaster="objects: .clickable; far: 20" line="color: #7CC0F8; opacity: 0.8"></a-entity>
@@ -146,9 +112,7 @@ export default function Immersive() {
         const root = host.current
         const on = (id, fn) => root.querySelector(id)?.addEventListener('click', fn)
         on('#b-start', () => (bRef.current.started ? bRef.current.stop() : bRef.current.start()))
-        on('#b-bosque', () => setKind('bosque'))
-        on('#b-playa', () => setKind('playa'))
-        on('#b-noche', () => setKind('noche'))
+        Object.keys(SCENES).forEach((k) => on(`#b-${k}`, () => setKind(k)))
         setReady(true)
       })
       .catch(() => setErr('No se pudo cargar el motor 3D.'))
@@ -164,12 +128,18 @@ export default function Immersive() {
     const root = host.current
     if (!ready || !root) return
     const sc = SCENES[kind]
-    root.querySelector('#sky')?.setAttribute('color', sc.sky)
-    root.querySelector('#ground')?.setAttribute('color', sc.ground)
-    root.querySelector('a-scene')?.setAttribute('fog', `type: linear; color: ${sc.fog}; near: 12; far: 70`)
-    root.querySelectorAll('#phase, #count').forEach((t) => t.setAttribute('color', sc.text))
+    root.querySelector('#sky')?.setAttribute('src', skyTexture(sc.sky))
+    const g = root.querySelector('#ground')
+    if (g) { g.setAttribute('visible', !!sc.ground); if (sc.ground) g.setAttribute('color', sc.ground) }
+    const scene = root.querySelector('a-scene')
+    if (sc.fog) scene?.setAttribute('fog', `type: linear; color: ${sc.fog}; near: 14; far: 80`)
+    else scene?.removeAttribute('fog')
+    root.querySelector('#amb')?.setAttribute('light', `type: ambient; intensity: ${sc.ambient}`)
+    root.querySelector('#sun')?.setAttribute('light', `type: directional; intensity: ${sc.sun}; color: ${sc.sunColor}`)
+    root.querySelectorAll('#phase, #desc').forEach((t) => t.setAttribute('color', sc.text))
+    root.querySelector('#desc')?.setAttribute('value', `${sc.label}: ${sc.desc}`)
     const pr = root.querySelector('#props')
-    if (pr) pr.innerHTML = props(kind)
+    if (pr) pr.innerHTML = buildWorld(kind)
   }, [kind, ready])
 
   // Sonido de la escena
@@ -204,7 +174,7 @@ export default function Immersive() {
   useVoiceCommands(
     'immersive',
     [
-      { re: /\b(bosque|playa|noche)\b/, label: 'bosque, playa o noche', run: (m) => setKind(m[1]), say: (m) => `Vamos a la ${m[1] === 'bosque' ? 'naturaleza del bosque' : m[1]}.` },
+      { re: /\b(bosque|playa|noche|montana|espacio|jardin)\b/, label: 'bosque, playa, noche, montaña, espacio o jardín', run: (m) => setKind(m[1]), say: (m) => `Vamos ${{ bosque: 'al bosque', playa: 'a la playa', noche: 'a la noche', montana: 'a la montaña', espacio: 'al espacio', jardin: 'al jardín zen' }[m[1]]}.` },
       { re: /\b(respir\w*|empez\w*)\b/, label: 'respirar', run: () => b.start() },
       { re: /\b(deten\w*|parar)\b/, label: 'detener', run: () => b.stop() },
       { re: /\b(camara|realidad aumentada)\b/, label: 'realidad aumentada', run: () => setMode('camara') },
@@ -270,7 +240,7 @@ export default function Immersive() {
         <div className="stack-sm">
           <span className="muted small">5 de 7 · WebXR · RV y RA</span>
           <h1>Santuario en realidad virtual</h1>
-          <p className="muted">Un lugar tranquilo en 3D para hacer la respiración guiada, ahora en {S.label.toLowerCase()}. La esfera crece al inhalar y se encoge al exhalar.</p>
+          <p className="muted">Seis lugares tranquilos en 3D para hacer la respiración guiada: bosque, playa, noche con fogata, montaña, espacio y jardín zen. Ahora estás en: {S.label.toLowerCase()}. {S.desc} La esfera crece al inhalar y se encoge al exhalar.</p>
         </div>
         <HowTo
           items={[

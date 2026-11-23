@@ -1,5 +1,6 @@
 import { NavLink, Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
-import { House, MessageCircle, Wind, Compass, UserRound, BookOpen, Smile, ArrowLeft, LifeBuoy } from 'lucide-react'
+import { House, MessageCircle, Wind, Compass, UserRound, BookOpen, Smile, ArrowLeft, LifeBuoy, Bluetooth, LogIn } from 'lucide-react'
+import { useAccount } from '../lib/auth'
 import VoiceDock from './VoiceDock'
 import { MODALITIES } from '../lib/modalities'
 
@@ -30,7 +31,9 @@ const TITLES = {
   '/respirar': 'Respiración',
   '/diario': 'Diario emocional',
   '/ayuda': 'Pausa segura',
-  '/perfil': 'Perfil'
+  '/perfil': 'Perfil',
+  '/perfil/eliminar': 'Eliminar cuenta',
+  '/dispositivos': 'Mis dispositivos'
 }
 
 export default function AppShell() {
@@ -40,6 +43,7 @@ export default function AppShell() {
   const title = mod ? mod.name : TITLES[pathname] || 'Escucha'
   const isRoot = MAIN_NAV.some((n) => n.to === pathname)
   const bleed = pathname === '/m/inmersivo' || pathname === '/m/mapa'
+  const acc = useAccount()
 
   return (
     <div className="shell">
@@ -58,6 +62,9 @@ export default function AppShell() {
         </NavLink>
         <NavLink to="/diario" className={({ isActive }) => `rail-link${isActive ? ' active' : ''}`}>
           <BookOpen size={20} aria-hidden="true" /> Diario
+        </NavLink>
+        <NavLink to="/dispositivos" className={({ isActive }) => `rail-link${isActive ? ' active' : ''}`}>
+          <Bluetooth size={20} aria-hidden="true" /> Mis dispositivos
         </NavLink>
         <div className="rail-sep" />
         <p className="rail-label">Experiencias</p>
@@ -84,6 +91,15 @@ export default function AppShell() {
             </>
           )}
           <span className="spacer" />
+          {acc ? (
+            <Link to="/perfil" className="tag" style={{ textDecoration: 'none', minHeight: 32 }} aria-label={`Sesión iniciada como ${acc.display}`}>
+              <UserRound size={14} aria-hidden="true" /> <span className="hide-sm">{acc.display}</span>
+            </Link>
+          ) : (
+            <Link to="/cuenta" className="btn btn-ghost btn-sm" style={{ minHeight: 40 }} aria-label="Ingresar o crear cuenta">
+              <LogIn size={16} aria-hidden="true" /> <span className="hide-sm">Ingresar</span>
+            </Link>
+          )}
           <Link to="/ayuda" className="sos-btn" data-coach="sos" aria-label="SOS, pedir ayuda ahora">
             <LifeBuoy size={18} aria-hidden="true" /> SOS
           </Link>

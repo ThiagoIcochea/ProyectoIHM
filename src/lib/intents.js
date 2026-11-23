@@ -19,6 +19,9 @@ export const DESTINATIONS = [
   { to: '/checkin', label: 'Cómo me siento', re: /\b(como me siento|emocion\w*|estado de animo|check ?in|registrar emocion)\b/ },
   { to: '/ayuda', label: 'Ayuda y SOS', re: /\b(sos|emergencia|linea de ayuda|ayuda urgente|pausa segura|conexiones de ayuda)\b/ },
   { to: '/perfil', label: 'Perfil', re: /\b(perfil|ajustes|configuracion|accesibilidad)\b/ },
+  { to: '/cuenta', label: 'Iniciar sesión', re: /\b(iniciar sesion|inicia sesion|login|loguear\w*|crear (una )?cuenta|registr\w*)\b/ },
+  { to: '/perfil/eliminar', label: 'Eliminar cuenta', re: /\b(eliminar|borrar|cerrar) (mi )?cuenta\b/ },
+  { to: '/dispositivos', label: 'Mis dispositivos', re: /\b(mis dispositivos|bluetooth|vincular|conectar (mi )?reloj|emparejar)\b/ },
   { to: '/explorar', label: 'Explorar', re: /\b(explorar|modalidades|experiencias)\b/ },
   { to: '/m/reloj', label: 'Reloj', re: /\b(reloj|smartwatch|watch|wearable)\b/ },
   { to: '/m/plegable', label: 'Plegable', re: /\b(plegable|doble pantalla|dual|dos pantallas)\b/ },
@@ -29,7 +32,39 @@ export const DESTINATIONS = [
   { to: '/m/gestos', label: 'Gestos', re: /\b(gestos?|camara|con las manos)\b/ }
 ]
 
-const NAV_VERB = /\b(ir a|ve a|vamos a|abre|abrir|abreme|llevame a|lleva me a|muestrame|mostrar|quiero ir a|entra a|entrar a|pasa a|cambia a|navega a)\b/
+const NAV_VERB = /\b(ir a|ir al|ve a|ve al|vamos a|vamos al|abre|abrir|abreme|abrime|llevame|lleva me|muestrame|muestra|mostrar|ensename|quiero ir|quiero ver|quiero usar|quiero abrir|quiero entrar|quiero|necesito|puedes abrir|puedes ir|podrias|me gustaria|entra a|entra al|entrar a|entrar al|pasa a|pasame a|cambia a|navega a|ponme|pon|activa|usa|usar|ver)\b/
+
+// Palabras clave para tolerar errores del reconocimiento ("respiracion" → "respiración", "relo" → "reloj")
+const KEYWORDS = {
+  '/respirar': ['respiracion', 'respirar', 'respira', 'calma'],
+  '/chat': ['chat', 'asistente', 'conversar'],
+  '/diario': ['diario', 'bitacora'],
+  '/perfil': ['perfil', 'ajustes', 'configuracion', 'accesibilidad'],
+  '/explorar': ['explorar', 'experiencias', 'modalidades'],
+  '/ayuda': ['emergencia', 'ayuda'],
+  '/m/reloj': ['reloj', 'smartwatch'],
+  '/m/plegable': ['plegable', 'pantallas'],
+  '/m/iot': ['hogar', 'lampara', 'domotica', 'dispositivos'],
+  '/m/inmersivo': ['virtual', 'santuario', 'inmersivo', 'aumentada'],
+  '/m/mapa': ['mapa', 'hospital', 'centros'],
+  '/m/gestos': ['gestos', 'camara'],
+  '/dispositivos': ['bluetooth', 'vincular', 'emparejar']
+}
+function lev(a, b) {
+  if (Math.abs(a.length - b.length) > 2) return 9
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)])
+  for (let j = 1; j <= b.length; j++) d[0][j] = j
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
+  return d[a.length][b.length]
+}
+function fuzzyDestination(t) {
+  const words = t.split(' ').filter((w) => w.length >= 4)
+  for (const [to, keys] of Object.entries(KEYWORDS)) {
+    for (const w of words) for (const k of keys) if (lev(w, k) <= (k.length >= 8 ? 2 : 1)) return DESTINATIONS.find((d) => d.to === to)
+  }
+  return null
+}
 
 export function parseGlobal(raw) {
   const t = norm(raw)
@@ -51,9 +86,16 @@ export function parseGlobal(raw) {
   if (/\b(necesito ayuda|ayudame|auxilio|sos|emergencia)\b/.test(t) && t.split(' ').length <= 5) return { type: 'navigate', to: '/ayuda', label: 'Ayuda y SOS' }
 
   const hasVerb = NAV_VERB.test(t)
-  const short = t.split(' ').length <= 4
-  if (hasVerb || short) {
+  const words = t.split(' ').length
+  // Frases personales largas no son órdenes: van al chat
+  const personal = /\b(me siento|estoy|me paso|tengo miedo|no puedo|me duele|mi (mama|papa|familia|amig\w*))\b/.test(t) && !hasVerb
+  if (personal && words > 3) return null
+  if (hasVerb || words <= 4) {
     for (const d of DESTINATIONS) if (d.re.test(t)) return { type: 'navigate', to: d.to, label: d.label }
+  }
+  if ((hasVerb && words <= 8) || words <= 3) {
+    const d = fuzzyDestination(t)
+    if (d) return { type: 'navigate', to: d.to, label: d.label }
   }
   return null
 }

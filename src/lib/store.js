@@ -1,8 +1,15 @@
 // Estado global mínimo, persistido en localStorage del propio navegador.
-// Nada sale del dispositivo salvo los mensajes que se envían a la IA (Groq) si el usuario configuró su clave.
+// Cada cuenta local guarda sus datos en su propia clave; el modo invitado usa 'escucha.v1'.
+// Nada sale del dispositivo salvo los mensajes que se envían a la IA (Groq) si el usuario la configuró.
 import { useSyncExternalStore } from 'react'
 
-const KEY = 'escucha.v1'
+export const SESSION_KEY = 'escucha.session'
+export const dataKey = (id) => (!id || id === 'guest' ? 'escucha.v1' : `escucha.v1.${id}`)
+function readSession() {
+  try { return localStorage.getItem(SESSION_KEY) || 'guest' } catch { return 'guest' }
+}
+let session = readSession()
+let KEY = dataKey(session)
 
 const defaults = {
   onboarded: false,
@@ -29,9 +36,9 @@ const defaults = {
   }
 }
 
-function load() {
+function load(key = KEY) {
   try {
-    const raw = localStorage.getItem(KEY)
+    const raw = localStorage.getItem(key)
     if (!raw) return { ...defaults }
     const saved = JSON.parse(raw)
     return { ...defaults, ...saved, iot: { ...defaults.iot, ...(saved.iot || {}) } }
@@ -66,10 +73,31 @@ export function setIot(device, patch) {
   setState((s) => ({ iot: { ...s.iot, [device]: typeof patch === 'boolean' ? patch : { ...s.iot[device], ...patch } } }))
 }
 
-export function resetAll() {
-  state = { ...defaults }
+export function resetAll(keep = {}) {
+  state = { ...defaults, ...keep }
   persist()
   listeners.forEach((l) => l())
+}
+
+export const getSession = () => session
+
+// Cambia de cuenta: guarda la actual, carga la nueva y avisa a la interfaz
+export function switchSession(id, { carry } = {}) {
+  persist()
+  session = id || 'guest'
+  KEY = dataKey(session)
+  try { localStorage.setItem(SESSION_KEY, session) } catch { /* sin almacenamiento */ }
+  const loaded = load()
+  state = carry ? { ...loaded, ...carry } : loaded
+  persist()
+  listeners.forEach((l) => l())
+}
+
+export function snapshot() {
+  return state
+}
+export function defaultState() {
+  return { ...defaults }
 }
 
 function subscribe(l) {
