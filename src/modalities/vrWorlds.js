@@ -1,4 +1,5 @@
 import { mat } from './textures'
+import { starSky, auroraTexture } from './planets'
 import { terrainHeight, blocked } from './terrainMath'
 
 // Mundos del Santuario de calma (A-Frame). Todo se genera con primitivas: no hay modelos ni texturas externas.
@@ -15,7 +16,7 @@ export const WORLDS = {
   },
   noche: {
     label: 'Noche', sound: 'lluvia', text: '#E7F1F8', desc: 'Una fogata tranquila bajo la aurora y las estrellas.',
-    sky: ['#050B18', '#1B3552'], ground: '#13283B', terrain: { height: 5, flat: 10, low: '#1B3426', mid: '#2A4430', high: '#3C4048', tex: 'grass', repeat: 60 }, fog: '#0B1A2A', ambient: 0.45, sun: 0.25, sunColor: '#9FC3FF'
+    sky: ['#050B18', '#1B3552'], stars: { milky: true, seed: 1 }, ground: '#13283B', terrain: { height: 5, flat: 10, low: '#1B3426', mid: '#2A4430', high: '#3C4048', tex: 'grass', repeat: 60 }, fog: '#0B1A2A', ambient: 0.45, sun: 0.25, sunColor: '#9FC3FF'
   },
   montana: {
     label: 'Montaña', sound: 'bosque', text: '#0E293D', desc: 'Un lago entre montañas nevadas y nubes lentas.',
@@ -23,11 +24,11 @@ export const WORLDS = {
   },
   fogata: {
     label: 'Fogata', sound: 'fogata', text: '#F4E9DA', desc: 'Una fogata en un claro del bosque, bajo las estrellas.',
-    sky: ['#04070F', '#22203A'], ground: '#1C2A1E', terrain: { height: 4, flat: 9, low: '#24402A', mid: '#3A5434', high: '#4E4A42', tex: 'grass', repeat: 60 }, fog: '#0C0F1A', ambient: 0.35, sun: 0.15, sunColor: '#8FA8FF'
+    sky: ['#04070F', '#22203A'], stars: { milky: true, seed: 2 }, ground: '#1C2A1E', terrain: { height: 4, flat: 9, low: '#24402A', mid: '#3A5434', high: '#4E4A42', tex: 'grass', repeat: 60 }, fog: '#0C0F1A', ambient: 0.35, sun: 0.15, sunColor: '#8FA8FF'
   },
   espacio: {
     label: 'Espacio', sound: 'olas', text: '#E7F1F8', desc: 'Flotas sobre una plataforma entre planetas y nebulosas.',
-    sky: ['#02030A', '#1A1040'], ground: null, fog: null, ambient: 0.6, sun: 0.5, sunColor: '#C8B6FF'
+    sky: ['#02030A', '#0A0820'], stars: { milky: true, nebula: true, seed: 3, density: 1.4 }, ground: null, fog: null, ambient: 0.6, sun: 0.5, sunColor: '#C8B6FF'
   },
   jardin: {
     label: 'Jardín zen', sound: 'lluvia', text: '#0E293D', desc: 'Cerezos, faroles de piedra y un estanque con peces koi.',
@@ -52,6 +53,32 @@ export function skyTexture([top, bottom]) {
   g.fillRect(0, 0, 4, 512)
   return (skyCache[k] = c.toDataURL())
 }
+
+// Dónde se sienta Wayra en cada mundo [x, z]; mira hacia ti
+const WAYRA_AT = { noche: [-2.1, -1.3], fogata: [-2.9, -4.6] }
+export function wayraPose(kind) {
+  const [x, z] = WAYRA_AT[kind] || [2.4, -2.2]
+  return { position: `${x} 0 ${z}`, rotation: `0 ${((Math.atan2(x, z) * 180) / Math.PI).toFixed(1)} 0` }
+}
+
+// Cielo del mundo: estrellado (con Vía Láctea o nebulosas) o degradado simple
+export function skyFor(w) {
+  return w.stars ? starSky(w.sky, w.stars) : skyTexture(w.sky)
+}
+// Pocas estrellas que titilan delante del cielo pintado, para que se sienta vivo
+function twinkles(r, n, R) {
+  let o = ''
+  for (let i = 0; i < n; i++) {
+    const a = r() * Math.PI * 2
+    const e = 0.2 + r() * 1.2
+    o += `<a-sphere radius="${f(0.08 + r() * 0.08)}" segments-width="6" segments-height="4" position="${f(Math.cos(a) * Math.cos(e) * R)} ${f(Math.sin(e) * R)} ${f(Math.sin(a) * Math.cos(e) * R)}" material="shader: flat; color: #F4F9FC" animation="property: scale; to: 0.2 0.2 0.2; dir: alternate; loop: true; dur: ${1100 + i * 97}" ${HIDE}></a-sphere>`
+  }
+  return o
+}
+const moonHTML = (pos, radius, extra = '') => `<a-entity position="${pos}" ${HIDE} ${extra}>
+  <a-entity planet="kind: moon; radius: ${radius}; sun: 0.7 0.1 1; ambient: 0.05"></a-entity>
+  <a-circle radius="${f(radius * 2.2)}" position="0 0 -0.5" material="shader: flat; color: #9FC3FF; opacity: 0.1; transparent: true; depthWrite: false"></a-circle>
+  <a-circle radius="${f(radius * 1.45)}" position="0 0 -0.4" material="shader: flat; color: #DCE8FF; opacity: 0.12; transparent: true; depthWrite: false"></a-circle></a-entity>`
 
 function rng(seed) {
   let x = seed
@@ -139,24 +166,19 @@ const BUILDERS = {
   },
   noche() {
     const r = rng(13)
-    let o = ''
-    for (let i = 0; i < 200; i++) {
-      const a = r() * Math.PI * 2
-      const e = 0.12 + r() * 1.35
-      o += `<a-sphere radius="${f(0.05 + r() * 0.12)}" position="${f(Math.cos(a) * Math.cos(e) * 62)} ${f(Math.sin(e) * 62)} ${f(Math.sin(a) * Math.cos(e) * 62)}" material="shader: flat; color: #F4F9FC" ${i % 6 === 0 ? `animation="property: scale; to: 0.3 0.3 0.3; dir: alternate; loop: true; dur: ${1200 + i * 9}"` : ''} ${HIDE}></a-sphere>`
-    }
-    o += `<a-circle radius="2.2" position="-12 16 -42" material="shader: flat; color: #F2F5FA" ${HIDE}></a-circle><a-circle radius="3.6" position="-12 16 -42.1" material="shader: flat; color: #9FC3FF; opacity: 0.18; transparent: true" ${HIDE}></a-circle>`
+    let o = twinkles(r, 24, 60)
+    o += moonHTML('-12 16 -42', 3.2)
     // Aurora
-    ;['#4CF2B3', '#5BC0FF', '#B48CFF'].forEach((c, i) => {
-      o += `<a-plane position="${-6 + i * 7} ${16 + i} -48" width="26" height="9" rotation="0 ${-12 + i * 12} ${-6 + i * 4}" material="shader: flat; color: ${c}; opacity: 0.18; transparent: true; side: double" animation="property: material.opacity; from: 0.06; to: 0.3; dir: alternate; loop: true; dur: ${5000 + i * 1300}; easing: easeInOutSine" ${HIDE}></a-plane>`
+    ;['#FFFFFF', '#9FE8FF', '#E2C8FF'].forEach((c, i) => {
+      o += `<a-plane position="${-10 + i * 10} ${15 + i * 1.5} ${-46 - i * 3}" width="34" height="16" rotation="${8 - i * 2} ${-18 + i * 18} ${-4 + i * 4}" material="shader: flat; src: ${auroraTexture()}; color: ${c}; opacity: 0.55; transparent: true; side: double; depthWrite: false; fog: false; blending: additive" animation="property: material.opacity; from: 0.3; to: 0.75; dir: alternate; loop: true; dur: ${5000 + i * 1300}; easing: easeInOutSine" ${HIDE}></a-plane>`
     })
     // Fogata
-    o += `<a-entity position="2.2 0 -2.2" ${HIDE}>
+    o += `<a-entity position="3.6 0 -1.2" ${HIDE}>
       <a-entity light="type: point; color: #FF9A4D; intensity: 1.4; distance: 12" position="0 0.8 0" animation="property: light.intensity; from: 1; to: 1.7; dir: alternate; loop: true; dur: 260"></a-entity>
       <a-cylinder radius="0.07" height="1" rotation="0 0 80" position="0 0.1 0" color="#5A3B26"></a-cylinder><a-cylinder radius="0.07" height="1" rotation="80 0 0" position="0 0.1 0" color="#5A3B26"></a-cylinder>
       <a-cone radius-bottom="0.3" radius-top="0" height="0.8" position="0 0.5 0" material="shader: flat; color: #FF7A2F; opacity: 0.9; transparent: true" animation="property: scale; to: 1.1 1.35 1.1; dir: alternate; loop: true; dur: 300"></a-cone>
       <a-cone radius-bottom="0.18" radius-top="0" height="0.55" position="0 0.45 0" material="shader: flat; color: #FFD166" animation="property: scale; to: 0.9 1.4 0.9; dir: alternate; loop: true; dur: 220"></a-cone></a-entity>`
-    for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; o += rock(2.2 + Math.cos(a) * 0.55, -2.2 + Math.sin(a) * 0.55, 0.12, '#6B7680') }
+    for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; o += rock(3.6 + Math.cos(a) * 0.55, -1.2 + Math.sin(a) * 0.55, 0.12, '#6B7680') }
     o += `<a-entity position="-4 0 -4" rotation="0 30 0" ${HIDE}><a-cone radius-bottom="1.3" radius-top="0" height="1.6" segments-radial="4" position="0 0.8 0" color="#2F5D7C"></a-cone></a-entity>`
     for (let i = 0; i < 50; i++) { const [x, z] = ring(r, 8, 32); if (clearPath(x, z)) o += pine(x, z, 2.5 + r() * 3, 0.9 + r() * 0.6, '#16362B', '#1E4535') }
     for (let i = 0; i < 26; i++) { const [x, z] = ring(r, 2.5, 12); o += glow(x, 0.5 + r() * 1.8, z, '#E8F59A', 0.04, i, 2400 + r() * 2200) }
@@ -181,12 +203,8 @@ const BUILDERS = {
     const FX = -4.6
     const FZ = -6.4
     let o = ''
-    for (let i = 0; i < 220; i++) {
-      const a = r() * Math.PI * 2
-      const e = 0.15 + r() * 1.3
-      o += `<a-sphere radius="${f(0.05 + r() * 0.12)}" position="${f(Math.cos(a) * Math.cos(e) * 64)} ${f(Math.sin(e) * 64)} ${f(Math.sin(a) * Math.cos(e) * 64)}" material="shader: flat; color: #F4F9FC" ${i % 7 === 0 ? `animation="property: scale; to: 0.3 0.3 0.3; dir: alternate; loop: true; dur: ${1100 + i * 7}"` : ''} ${HIDE}></a-sphere>`
-    }
-    o += `<a-circle radius="1.8" position="14 18 -44" material="shader: flat; color: #F2F5FA" ${HIDE}></a-circle>`
+    o += twinkles(r, 20, 62)
+    o += moonHTML('14 18 -44', 1.8)
     // Fogata: anillo de piedras, leños cruzados, brasas, fuego con partículas y luz cálida
     o += `<a-entity position="${FX} 0 ${FZ}" ${HIDE}>
       <a-circle radius="2.4" rotation="-90 0 0" position="0 0.02 0" material="shader: flat; color: #FF8A3D; opacity: 0.12; transparent: true" animation="property: material.opacity; from: 0.08; to: 0.18; dir: alternate; loop: true; dur: 380"></a-circle>
@@ -220,21 +238,17 @@ const BUILDERS = {
   espacio() {
     const r = rng(23)
     let o = `<a-cylinder radius="2.6" height="0.25" position="0 -0.12 -0.8" material="color: #1E2A4A; metalness: 0.6; roughness: 0.3"></a-cylinder><a-torus radius="2.6" radius-tubular="0.03" rotation="90 0 0" position="0 0.02 -0.8" material="shader: flat; color: #7CC0F8" animation="property: material.opacity; from: 0.4; to: 1; dir: alternate; loop: true; dur: 2000"></a-torus>`
-    for (let i = 0; i < 260; i++) {
-      const a = r() * Math.PI * 2
-      const e = (r() - 0.5) * Math.PI
-      o += `<a-sphere radius="${f(0.05 + r() * 0.14)}" position="${f(Math.cos(a) * Math.cos(e) * 70)} ${f(Math.sin(e) * 70)} ${f(Math.sin(a) * Math.cos(e) * 70)}" material="shader: flat; color: ${r() > 0.85 ? '#C8B6FF' : '#F4F9FC'}" ${HIDE}></a-sphere>`
-    }
-    o += `<a-entity position="-14 9 -32" animation="property: rotation; to: 0 360 0; loop: true; dur: 90000; easing: linear" ${HIDE}><a-sphere radius="5" color="#D9A066"></a-sphere><a-torus radius="8" radius-tubular="0.6" rotation="78 0 0" scale="1 1 0.08" material="color: #E8C9A0; opacity: 0.8; transparent: true"></a-torus></a-entity>`
-    o += `<a-sphere radius="3" position="18 14 -38" color="#5B8DEF" animation="property: rotation; to: 0 360 0; loop: true; dur: 60000; easing: linear" ${HIDE}></a-sphere><a-sphere radius="0.8" position="22 16 -34" color="#C9D6DF" ${HIDE}></a-sphere>`
-    o += `<a-sphere radius="1.6" position="8 -4 -24" color="#E07A5F" ${HIDE}></a-sphere>`
-    ;[['#7B5CFF', -20, 2, -50, 14], ['#2FB3FF', 22, -6, -46, 12], ['#FF6FB5', 0, 22, -55, 10]].forEach(([c, x, y, z, rad]) => {
-      o += `<a-sphere radius="${rad}" position="${x} ${y} ${z}" material="shader: flat; color: ${c}; opacity: 0.12; transparent: true" animation="property: material.opacity; from: 0.06; to: 0.18; dir: alternate; loop: true; dur: 6000" ${HIDE}></a-sphere>`
-    })
+    o += twinkles(r, 30, 66)
+    // Sol lejano a la izquierda: ilumina a todos los planetas desde el mismo lado
+    o += `<a-entity position="-60 20 -40" ${HIDE}><a-circle radius="3" material="shader: flat; color: #FFF6E0"></a-circle><a-circle radius="9" position="0 0 -0.2" material="shader: flat; color: #FFD9A0; opacity: 0.16; transparent: true; depthWrite: false"></a-circle></a-entity>`
+    o += `<a-entity position="-14 9 -32" rotation="0 0 -12" planet="kind: gas; radius: 5; sun: -1 0.3 0.4; ambient: 0.04; ring: true; spin: 240; rim: #F3D9A8; rimPow: 4; glow: 0.4" ${HIDE}></a-entity>`
+    o += `<a-entity position="18 14 -38" planet="kind: earth; radius: 3; sun: -1 0.3 0.4; ambient: 0.03; clouds: true; spin: 160; rim: #6FB4FF; rimPow: 2.5; glow: 1.2" ${HIDE}></a-entity>`
+    o += `<a-entity position="23 16.5 -33" planet="kind: moon; radius: 0.8; sun: -1 0.3 0.4; ambient: 0.03" ${HIDE}></a-entity>`
+    o += `<a-entity position="8 -4 -24" planet="kind: mars; radius: 1.6; sun: -1 0.3 0.4; ambient: 0.04; spin: 120; rim: #FFB089; rimPow: 3; glow: 0.5" ${HIDE}></a-entity>`
     for (let i = 0; i < 18; i++) {
       const [x, z] = ring(r, 6, 20)
       const y = -3 + r() * 9
-      o += `<a-dodecahedron radius="${f(0.2 + r() * 0.7)}" position="${f(x)} ${f(y)} ${f(z)}" color="#6E6A75" animation="property: rotation; to: ${f(r() * 360)} 360 ${f(r() * 180)}; loop: true; dur: ${Math.round(20000 + r() * 30000)}; easing: linear" animation__f="property: position; to: ${f(x)} ${f(y + 0.8)} ${f(z)}; dir: alternate; loop: true; dur: ${Math.round(4000 + r() * 4000)}; easing: easeInOutSine" ${HIDE}></a-dodecahedron>`
+      o += `<a-dodecahedron radius="${f(0.2 + r() * 0.7)}" position="${f(x)} ${f(y)} ${f(z)}" ${mat('stone', { color: '#8E8780', rough: 1 })} animation="property: rotation; to: ${f(r() * 360)} 360 ${f(r() * 180)}; loop: true; dur: ${Math.round(20000 + r() * 30000)}; easing: linear" animation__f="property: position; to: ${f(x)} ${f(y + 0.8)} ${f(z)}; dir: alternate; loop: true; dur: ${Math.round(4000 + r() * 4000)}; easing: easeInOutSine" ${HIDE}></a-dodecahedron>`
     }
     return o
   },
@@ -429,7 +443,7 @@ export function arDiorama(kind, id = 'cam-sanctuary', extra = '') {
     o += `<a-entity position="0.15 0.12 -0.1" rotation="0 -30 0"><a-cone radius-bottom="0.15" radius-top="0" height="0.2" segments-radial="4" position="0 0.1 0" color="#2F5D7C"></a-cone></a-entity>`
     o += `<a-entity position="-0.15 0.12 0.15"><a-cylinder radius="0.02" height="0.05" position="0 0.025 0" material="color: #FFE2A8; emissive: #FFB347; emissiveIntensity: 1"></a-cylinder><a-entity light="type: point; color: #FFC071; intensity: 0.5; distance: 1" position="0 0.08 0"></a-entity></a-entity>`
     for (let i = 0; i < 4; i++) o += miniPine(-0.32 + i * 0.2, -0.3 + (i % 2) * 0.05, 0.2)
-    o += `<a-sphere radius="0.06" position="0.3 0.75 -0.2" material="shader: flat; color: #F2F5FA"></a-sphere>`
+    o += `<a-entity position="0.3 0.75 -0.2" planet="kind: moon; radius: 0.06; sun: 0.4 0.2 1; ambient: 0.08"></a-entity>`
     for (let i = 0; i < 26; i++) { const a = r() * Math.PI * 2; o += `<a-sphere radius="0.006" position="${f(Math.cos(a) * (0.3 + r() * 0.3))} ${f(0.45 + r() * 0.5)} ${f(Math.sin(a) * (0.3 + r() * 0.3))}" material="shader: flat; color: #F4F9FC" animation="property: scale; to: 0.3 0.3 0.3; dir: alternate; loop: true; dur: ${900 + i * 60}"></a-sphere>` }
     o += orbHTML(id)
   } else if (kind === 'montana') {
@@ -442,8 +456,8 @@ export function arDiorama(kind, id = 'cam-sanctuary', extra = '') {
     o += orbHTML(id)
   } else if (kind === 'espacio') {
     o += `<a-cylinder radius="0.45" height="0.03" position="0 0.06 0" material="color: #1E2A4A; metalness: 0.6; roughness: 0.3"></a-cylinder><a-torus radius="0.45" radius-tubular="0.006" rotation="90 0 0" position="0 0.08 0" material="shader: flat; color: #7CC0F8"></a-torus>`
-    o += `<a-entity position="0.15 0.4 -0.1" animation="property: rotation; to: 0 360 0; loop: true; dur: 20000; easing: linear"><a-sphere radius="0.11" color="#D9A066"></a-sphere><a-torus radius="0.18" radius-tubular="0.015" rotation="78 0 0" scale="1 1 0.1" material="color: #E8C9A0; opacity: 0.85; transparent: true"></a-torus></a-entity>`
-    o += `<a-entity position="0 0.35 0" animation="property: rotation; to: 0 -360 0; loop: true; dur: 12000; easing: linear"><a-sphere radius="0.04" position="0.32 0 0" color="#5B8DEF"></a-sphere></a-entity>`
+    o += `<a-entity position="0.15 0.4 -0.1" animation="property: rotation; to: 0 360 0; loop: true; dur: 20000; easing: linear"><a-entity planet="kind: gas; radius: 0.11; sun: -1 0.4 0.6; ambient: 0.1; ring: true; rim: #F3D9A8; glow: 0.4"></a-entity></a-entity>`
+    o += `<a-entity position="0 0.35 0" animation="property: rotation; to: 0 -360 0; loop: true; dur: 12000; easing: linear"><a-entity position="0.32 0 0" planet="kind: earth; radius: 0.04; sun: -1 0.4 0.6; ambient: 0.1; clouds: true; rim: #6FB4FF; glow: 1.2"></a-entity></a-entity>`
     for (let i = 0; i < 8; i++) { const y = 0.2 + r() * 0.4; const x = r() * 0.8 - 0.4; o += `<a-dodecahedron radius="${f(0.015 + r() * 0.02)}" position="${f(x)} ${f(y)} ${f(r() * 0.6 - 0.3)}" color="#6E6A75" animation="property: position; to: ${f(x)} ${f(y + 0.04)} ${f(r() * 0.6 - 0.3)}; dir: alternate; loop: true; dur: ${3000 + i * 300}; easing: easeInOutSine"></a-dodecahedron>` }
     o += orbHTML(id, -0.6, 0.55, 0.05, '#D6C8FF', '#7B5CFF')
   } else if (kind === 'jardin') {

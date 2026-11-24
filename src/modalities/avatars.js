@@ -61,63 +61,6 @@ const shade = (hex, f) => {
 const n3 = (x) => x.toFixed(3)
 
 // ---------- 3D ----------
-function hair3D(a) {
-  const c = `color: ${a.hairColor}; roughness: 0.8`
-  const cap = `<a-sphere radius="0.203" theta-length="78" position="0 0.012 0.008" material="${c}"></a-sphere>`
-  const back = `<a-sphere radius="0.185" scale="1.05 0.92 1" position="0 0 0.055" material="${c}"></a-sphere>`
-  const strands = (n, len, z = 0.1, w = 0.17) => {
-    let o = ''
-    for (let i = 0; i < n; i++) {
-      const t = i / (n - 1)
-      const x = -w + t * w * 2
-      o += `<a-cylinder radius="0.045" height="${len}" position="${n3(x)} ${n3(-len / 2 + 0.02)} ${n3(z + Math.abs(x) * -0.2)}" material="${c}"></a-cylinder>`
-    }
-    return o
-  }
-  switch (a.hair) {
-    case 'largo':
-      return cap + back + strands(6, 0.42, 0.1)
-    case 'ondulado': {
-      let o = cap + back
-      for (let i = 0; i < 12; i++) {
-        const side = i % 2 ? 1 : -1
-        const k = Math.floor(i / 2)
-        o += `<a-sphere radius="0.07" position="${n3(side * (0.15 + (k % 2) * 0.03))} ${n3(-0.05 - k * 0.055)} ${n3(0.07 + (k % 2) * 0.02)}" material="${c}"></a-sphere>`
-      }
-      return o
-    }
-    case 'rizado': {
-      let o = ''
-      for (let i = 0; i < 18; i++) {
-        const a1 = (i / 18) * Math.PI * 2
-        o += `<a-sphere radius="0.07" position="${n3(Math.cos(a1) * 0.165)} ${n3(0.09 + Math.sin(i * 1.7) * 0.03)} ${n3(Math.sin(a1) * 0.165 + 0.03)}" material="${c}"></a-sphere>`
-      }
-      return o + `<a-sphere radius="0.17" position="0 0.1 0.03" material="${c}"></a-sphere>` + back
-    }
-    case 'afro':
-      return `<a-sphere radius="0.25" scale="1 0.95 0.95" position="0 0.11 0.1" material="${c}; roughness: 1"></a-sphere>`
-    case 'trenzas': {
-      let o = cap + back
-      ;[-1, 1].forEach((side) => {
-        for (let k = 0; k < 7; k++) o += `<a-sphere radius="${n3(0.042 - k * 0.002)}" position="${n3(side * 0.17)} ${n3(-0.08 - k * 0.06)} ${n3(0.02 - k * 0.005)}" material="${c}"></a-sphere>`
-        o += `<a-sphere radius="0.022" position="${n3(side * 0.17)} -0.52 -0.02" material="color: #E86F9A"></a-sphere>`
-      })
-      return o
-    }
-    case 'cola':
-      return `${cap}${back}<a-sphere radius="0.05" position="0 0.08 0.2" material="color: #E86F9A"></a-sphere><a-cylinder radius="0.05" radius-top="0.06" height="0.36" position="0 -0.08 0.23" rotation="12 0 0" material="${c}"></a-cylinder><a-sphere radius="0.05" position="0 -0.26 0.26" material="${c}"></a-sphere>`
-    case 'recogido':
-      return `${cap}${back}<a-sphere radius="0.095" position="0 0.17 0.15" material="${c}"></a-sphere>`
-    case 'flequillo':
-      return `${cap}${back}<a-box width="0.3" height="0.07" depth="0.06" position="0 0.11 -0.15" rotation="-18 0 0" material="${c}"></a-box>`
-    case 'rapado':
-      return `<a-sphere radius="0.196" theta-length="75" position="0 0.004 0.004" material="color: ${a.hairColor}; opacity: 0.7; transparent: true; roughness: 1"></a-sphere>`
-    default:
-      return cap + back
-  }
-}
-
-
 function headAcc3D(a) {
   let o = ''
   const has = (k) => a.accessories.includes(k)
@@ -160,15 +103,6 @@ function bodyExtras(a) {
   return o
 }
 
-function facialHair(a) {
-  const fc = `color: ${a.hairColor}; roughness: 1`
-  let o = ''
-  if (a.facial === 'bigote' || a.facial === 'candado' || a.facial === 'barba') o += `<a-box width="0.1" height="0.02" depth="0.02" position="0 -0.045 -0.185" material="${fc}"></a-box>`
-  if (a.facial === 'candado') o += `<a-sphere radius="0.05" scale="1 0.8 0.8" position="0 -0.15 -0.13" material="${fc}"></a-sphere>`
-  if (a.facial === 'barba') o += `<a-sphere radius="0.1" scale="1.4 0.85 1" position="0 -0.12 -0.08" material="${fc}"></a-sphere>`
-  return o
-}
-
 // Personaje completo (mirando hacia -z). La cabeza va en un grupo aparte para seguir la orientación del dispositivo.
 export function avatarHTML(av, name = '') {
   const a = normalizeAvatar(av)
@@ -176,15 +110,14 @@ export function avatarHTML(av, name = '') {
   const json = JSON.stringify(a).replace(/"/g, '&quot;')
   return `<a-entity scale="${hy} ${hy} ${hy}">
     <a-entity class="body" avatar-body="${json}">${bodyExtras(a)}</a-entity>
-    <a-entity class="head" position="0 1.43 0" avatar-head>
+    <a-entity class="head" position="0 1.47 0" scale="0.7 0.7 0.7" avatar-head>
       <a-entity class="face" avatar-face="${json}"></a-entity>
-      ${facialHair(a)}
-      ${hair3D(a)}
+      <a-entity class="hair" avatar-hair="${json}"></a-entity>
       ${headAcc3D(a)}
     </a-entity>
     <a-ring class="talk" radius-inner="0.34" radius-outer="0.38" rotation="-90 0 0" position="0 0.02 0" visible="false" material="shader: flat; color: #6FD3A0" animation="property: scale; from: 1 1 1; to: 1.2 1.2 1.2; dir: alternate; loop: true; dur: 500"></a-ring>
-    <a-text class="name" value="${String(name).replace(/["<>]/g, '')}" align="center" width="2.2" color="#FFFFFF" position="0 1.95 0" rotation="0 180 0"></a-text>
-    <a-text class="bubble" value="" align="center" width="2.4" color="${a.outfit}" position="0 2.15 0" rotation="0 180 0"></a-text>
+    <a-text class="name" value="${String(name).replace(/["<>]/g, '')}" align="center" width="2.2" color="#FFFFFF" position="0 1.82 0" rotation="0 180 0"></a-text>
+    <a-text class="bubble" value="" align="center" width="2.4" color="${a.outfit}" position="0 2.0 0" rotation="0 180 0"></a-text>
   </a-entity>`
 }
 
@@ -194,7 +127,7 @@ export function avatarSVG(av) {
   const woman = a.body === 'mujer'
   const has = (k) => a.accessories.includes(k)
   const hc = a.hairColor
-  const bx = { delgado: 0.9, medio: 1, robusto: 1.15 }[a.build]
+  const bx = { delgado: 0.9, medio: 1, robusto: 1.15 }[a.build] * (woman ? 0.92 : 1.12)
   const backHair = {
     largo: `<path d="M37 50 Q34 20 60 18 Q86 20 83 50 L86 100 Q72 92 70 64 L50 64 Q48 92 34 100 Z" fill="${hc}"/>`,
     ondulado: `<path d="M37 50 Q34 20 60 18 Q86 20 83 50 Q90 62 84 72 Q90 84 80 92 L70 64 L50 64 L40 92 Q30 84 36 72 Q30 62 37 50 Z" fill="${hc}"/>`,
@@ -247,13 +180,16 @@ export function avatarSVG(av) {
     ${topShape}
     <rect x="54" y="68" width="12" height="14" fill="${a.skin}"/>
     <ellipse cx="38.5" cy="51" rx="3.5" ry="5.5" fill="${a.skin}"/><ellipse cx="81.5" cy="51" rx="3.5" ry="5.5" fill="${a.skin}"/>
-    <ellipse cx="60" cy="50" rx="21" ry="24" fill="${a.skin}"/>
+    ${woman
+      ? `<path d="M39 46 Q39 25 60 25 Q81 25 81 46 Q81 64 70 71 Q65 74.5 60 74.5 Q55 74.5 50 71 Q39 64 39 46 Z" fill="${a.skin}"/>`
+      : `<path d="M38.5 45 Q38.5 25 60 25 Q81.5 25 81.5 45 Q81.5 62 77 68 Q71 75 60 75.5 Q49 75 43 68 Q38.5 62 38.5 45 Z" fill="${a.skin}"/><path d="M45 69 Q60 76 75 69" fill="none" stroke="${shade(a.skin, 0.85)}" stroke-width="1.2" opacity="0.6"/>`}
     <ellipse cx="52" cy="49" rx="4" ry="3.3" fill="#fff"/><ellipse cx="68" cy="49" rx="4" ry="3.3" fill="#fff"/>
     <circle cx="52" cy="49" r="2.3" fill="${a.eyes}"/><circle cx="68" cy="49" r="2.3" fill="${a.eyes}"/>
     <circle cx="52" cy="49" r="1.1" fill="#0A0A0A"/><circle cx="68" cy="49" r="1.1" fill="#0A0A0A"/>
+    ${woman ? '<path d="M47.5 46.5 Q52 44 56.5 46.5 M63.5 46.5 Q68 44 72.5 46.5" fill="none" stroke="#1A1A1A" stroke-width="1.6" stroke-linecap="round"/><path d="M47 46.5 L45.5 45 M73 46.5 L74.5 45" stroke="#1A1A1A" stroke-width="1.2" stroke-linecap="round"/>' : ''}
     <path d="M47 42 Q52 ${a.expression === 'alegre' ? 39 : 41} 57 42 M63 42 Q68 ${a.expression === 'alegre' ? 39 : 41} 73 42" fill="none" stroke="${shade(hc, 0.9)}" stroke-width="${browW}" stroke-linecap="round"/>
     <path d="M60 52 Q58 57 61 57" fill="none" stroke="${shade(a.skin, 0.8)}" stroke-width="1.5" stroke-linecap="round"/>
-    ${mouth}
+    ${woman ? mouth.replace(/#8A3B32/g, '#C2566B').replace(/#7A2E28/g, '#B04A5E') : mouth}
     <circle cx="47" cy="58" r="3.5" fill="#F2A3A3" opacity="${woman ? 0.5 : 0.2}"/><circle cx="73" cy="58" r="3.5" fill="#F2A3A3" opacity="${woman ? 0.5 : 0.2}"/>
     ${facial}
     ${frontHair}

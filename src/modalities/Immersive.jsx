@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Trees, Waves, Moon, Mountain, Orbit, Flower2, Play, Square, Camera, Glasses, Volume2, VolumeX, Smartphone, Hand, LocateFixed, Flame, Users, Copy, LogOut, Share2, Mic, MicOff, UserRound, Eye, EyeOff, Menu, Shapes } from 'lucide-react'
-import { WORLDS, buildWorld, skyTexture, breathParticles, terrainAttr, envAttr, arSanctuary, arDiorama } from './vrWorlds'
+import { WORLDS, buildWorld, skyFor, wayraPose, breathParticles, terrainAttr, envAttr, arSanctuary, arDiorama } from './vrWorlds'
 import { registerXR } from './xr'
 import { useRoom, createRoom, joinRoom, leaveRoom, resumeRoom, sendPose, sendReaction, sendBreath, onRemoteBreath, REACTIONS, sendAvatar, sendScene, startTalking, stopTalking, listAudioDevices, setVoiceOutput } from '../lib/rooms'
 import { avatarHTML } from './avatars'
@@ -61,6 +61,14 @@ function arCameraHTML(motion, kind) {
   </a-scene>`
 }
 
+// Círculo compartido de la sala: centro bajo la esfera de respiración
+const SEAT_C = { x: 0, z: -3.2 }
+const SEAT_R = 2.6
+function seatPos(slot) {
+  const th = (slot * Math.PI) / 3
+  return [SEAT_C.x + Math.sin(th) * SEAT_R, SEAT_C.z + Math.cos(th) * SEAT_R]
+}
+
 const ICONS = { bosque: Trees, playa: Waves, noche: Moon, fogata: Flame, montana: Mountain, espacio: Orbit, jardin: Flower2 }
 const SCENES = Object.fromEntries(Object.entries(WORLDS).map(([k, w]) => [k, { ...w, icon: ICONS[k] }]))
 
@@ -75,7 +83,7 @@ function sceneHTML(kind, motion) {
     webxr="optionalFeatures: local-floor, bounded-floor, hand-tracking, hit-test, light-estimation" ar-hit-test="target: #ar-sanctuary; type: footprint" ${s.fog ? `fog="type: linear; color: ${s.fog}; near: 14; far: 80"` : ''}
     cursor="rayOrigin: mouse" raycaster="objects: .clickable" loading-screen="enabled: false" device-orientation-permission-ui="enabled: false" env-light="${envAttr(s)}">
     ${assetsHTML()}
-    <a-sky id="sky" src="${skyTexture(s.sky)}" hide-on-enter-ar></a-sky>
+    <a-sky id="sky" src="${skyFor(s)}" material="shader: flat; fog: false" hide-on-enter-ar></a-sky>
     <a-entity id="amb" light="type: ambient; intensity: ${s.ambient}"></a-entity>
     <a-entity id="sun" light="type: directional; intensity: ${s.sun}; color: ${s.sunColor}" position="3 8 4"></a-entity>
     <a-entity id="ground" ${s.terrain ? `terrain="${terrainAttr(s, kind)}"` : ''} visible="${!!s.terrain}" hide-on-enter-ar></a-entity>
@@ -92,7 +100,7 @@ function sceneHTML(kind, motion) {
     <a-text id="desc" value="${s.label}: ${s.desc}" align="center" color="${s.text}" width="3.2" position="0 2.32 -3.2"></a-text>
     <a-text id="count" value="" align="center" color="#FFFFFF" width="7" position="0 1.6 -2.6"></a-text>
     </a-entity>
-    ${viscachaHTML('wayra', 'class="clickable" position="2.4 0 -2.2" rotation="0 132 0"')}
+    ${viscachaHTML('wayra', `class="clickable" position="${wayraPose(kind).position}" rotation="${wayraPose(kind).rotation}"`)}
     <a-entity id="ui3d">
       ${button3d('b-start', 'Respirar', -0.58, 0.55, '#0966BF', 1.0)}
       ${button3d('b-next', 'Otro lugar', 0.58, 0.55, '#24435C', 1.0)}
@@ -213,7 +221,8 @@ export default function Immersive() {
     const root = host.current
     if (!ready || !root || mode !== 'vr') return
     const sc = SCENES[kind]
-    root.querySelector('#sky')?.setAttribute('src', skyTexture(sc.sky))
+    root.querySelector('#sky')?.setAttribute('src', skyFor(sc))
+    { const w = root.querySelector('#wayra'); const p = wayraPose(kind); if (w && !w.closest('#cam-sanctuary')) { w.setAttribute('position', p.position); w.setAttribute('rotation', p.rotation) } }
     const g = root.querySelector('#ground')
     if (g) {
       g.setAttribute('visible', !!sc.terrain)
@@ -266,8 +275,9 @@ export default function Immersive() {
     if (!inRoom || !ready) return
     const t = setInterval(() => {
       const cam = host.current?.querySelector('#cam')
-      const q = cam?.object3D?.quaternion
-      if (q) sendPose([q.x, q.y, q.z, q.w], bRef.current.running)
+      if (!cam?.object3D) return
+      const q = cam.object3D.getWorldQuaternion(new window.AFRAME.THREE.Quaternion())
+      sendPose([q.x, q.y, q.z, q.w], bRef.current.running)
     }, 100)
     return () => clearInterval(t)
   }, [inRoom, ready])
@@ -279,25 +289,25 @@ export default function Immersive() {
     const ids = new Set(list.map((m) => m.id))
     box.querySelectorAll('.avatar').forEach((el) => { if (!ids.has(el.dataset.id)) el.remove() })
     const vrMode = mode === 'vr'
-    const R = vrMode ? 2.1 : 0.8
     const SCALE = vrMode ? 1 : 0.24
-    const SEATS = [-55, 55, -105, 105, 180]
-    list.forEach((m, i) => {
+    const mySlot = room.me?.slot ?? 0
+    list.forEach((m) => {
       let el = box.querySelector(`.avatar[data-id="${m.id}"]`)
-      const sig = JSON.stringify([m.avatar, m.name])
+      const slot = m.slot ?? 1
+      const sig = JSON.stringify([m.avatar, m.name, slot, mySlot, mode])
       if (el && el.dataset.sig !== sig) { el.remove(); el = null }
-      const a = (SEATS[i % SEATS.length] * Math.PI) / 180
-      const x = Math.sin(a) * R
-      const z = -Math.cos(a) * R
+      // RV: círculo compartido alrededor de la esfera. RA: figuritas alrededor del diorama, contigo al frente
+      const th = vrMode ? (slot * Math.PI) / 3 : ((slot - mySlot) * Math.PI) / 3
+      const [x, z] = vrMode ? seatPos(slot) : [Math.sin(th) * 0.8, Math.cos(th) * 0.8]
       if (!el) {
         el = document.createElement('a-entity')
         el.className = 'avatar'
         el.dataset.id = m.id
         el.dataset.sig = sig
         el.setAttribute('position', `${x.toFixed(2)} 0 ${z.toFixed(2)}`)
-        el.setAttribute('rotation', `0 ${((Math.atan2(x, z) * 180) / Math.PI).toFixed(1)} 0`)
+        el.setAttribute('rotation', `0 ${((th * 180) / Math.PI).toFixed(1)} 0`)
         el.setAttribute('scale', `${SCALE} ${SCALE} ${SCALE}`)
-        el.innerHTML = avatarHTML(m.avatar, m.name)
+        el.innerHTML = avatarHTML(m.avatar, m.name).replace('avatar-head>', `avatar-head="yaw: ${vrMode ? th : (slot * Math.PI) / 3}">`)
         box.appendChild(el)
       }
       const head = el.querySelector('.head')
@@ -305,10 +315,26 @@ export default function Immersive() {
       el.querySelector('.bubble')?.setAttribute('value', m.react && Date.now() - (m.reactAt || 0) < 4500 ? REACTIONS[m.react] : '')
       el.querySelector('.talk')?.setAttribute('visible', !!m.talking)
       el.querySelector('.face')?.components?.['avatar-face']?.setTalking(!!m.talking)
+      el.querySelector('.body')?.components?.['avatar-body']?.setTalking(!!m.talking)
       if (m.breath) el.setAttribute('animation', `property: scale; from: ${SCALE} ${SCALE} ${SCALE}; to: ${SCALE * 1.04} ${SCALE * 1.03} ${SCALE * 1.04}; dir: alternate; loop: true; dur: 4000; easing: easeInOutSine`)
       else el.removeAttribute('animation')
     })
-  }, [room.members, ready, mode])
+  }, [room.members, room.me?.slot, ready, mode])
+
+  // En una sala de RV te sientas en tu lugar del círculo, mirando al centro
+  useEffect(() => {
+    const rig = host.current?.querySelector('#rig')
+    if (!rig || !ready) return
+    if (mode === 'vr' && inRoom) {
+      const slot = room.me?.slot ?? 0
+      const [x, z] = seatPos(slot)
+      rig.setAttribute('position', `${x.toFixed(2)} 0 ${z.toFixed(2)}`)
+      rig.setAttribute('rotation', `0 ${slot * 60} 0`)
+    } else {
+      rig.setAttribute('position', '0 0 0')
+      rig.setAttribute('rotation', '0 0 0')
+    }
+  }, [inRoom, room.me?.slot, ready, mode])
 
   // El anfitrión elige el escenario para todos; los invitados lo siguen
   const isMember = room.status === 'member'

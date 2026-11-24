@@ -91,7 +91,8 @@ function handle(msg, from) {
     case 'roster': {
       const m = {}
       msg.members.forEach((x) => { if (x.id !== st.me?.id) m[x.id] = { ...(members[x.id] || {}), ...x, avatar: normalizeAvatar(x.avatar) } })
-      set({ members: m })
+      const mine = msg.members.find((x) => x.id === st.me?.id)
+      set({ members: m, me: mine ? { ...st.me, slot: mine.slot } : st.me })
       syncCalls()
       return
     }
@@ -127,7 +128,14 @@ function handle(msg, from) {
 }
 
 function roster() {
-  return [st.me, ...Object.values(st.members).map(({ id, name, avatar, talking }) => ({ id, name, avatar, talking }))]
+  return [st.me, ...Object.values(st.members).map(({ id, name, avatar, talking, slot }) => ({ id, name, avatar, talking, slot }))]
+}
+// Lugar fijo en el círculo compartido (0 = anfitrión). Así todos ven a cada persona en el mismo sitio
+// y cuando alguien mira a otra persona, esa persona ve que la están mirando.
+function freeSlot() {
+  const used = new Set(Object.values(st.members).map((m) => m.slot))
+  for (let i = 1; i < 6; i++) if (!used.has(i)) return i
+  return 5
 }
 
 function listenCalls() {
@@ -146,7 +154,7 @@ export async function createRoom(fixedCode) {
     const code = fixedCode || randCode()
     try {
       peer = await makePeer(PREFIX + code)
-      set({ status: 'host', code, me: meInfo(peer.id, 0), members: {}, scene: null })
+      set({ status: 'host', code, me: { ...meInfo(peer.id, 0), slot: 0 }, members: {}, scene: null })
       save({ code, role: 'host' })
       listenCalls()
       startHeartbeat()
@@ -161,7 +169,8 @@ export async function createRoom(fixedCode) {
             // Si alguien vuelve tras recargar, se quita su conexión anterior
             conns.filter((c) => c !== conn && c.peer === conn.peer).forEach((c) => c.close())
             const idx = conns.indexOf(conn) + 1
-            const info = { id: conn.peer, name: clean(msg.name) || `Persona ${idx + 1}`, avatar: normalizeAvatar(msg.avatar) }
+            const prevSlot = st.members[conn.peer]?.slot
+            const info = { id: conn.peer, name: clean(msg.name) || `Persona ${idx + 1}`, avatar: normalizeAvatar(msg.avatar), slot: prevSlot ?? freeSlot() }
             set({ members: { ...st.members, [conn.peer]: info } })
             const r = { t: 'roster', members: roster() }
             conns.forEach((c) => c.open && c.send(r))

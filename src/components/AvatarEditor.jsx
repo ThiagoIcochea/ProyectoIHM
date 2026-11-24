@@ -35,6 +35,18 @@ function Choice({ label, value, options, onChange }) {
 }
 
 const TABS = { cuerpo: 'Cuerpo', cara: 'Cara', pelo: 'Pelo', ropa: 'Ropa', accesorios: 'Accesorios', ia: 'Con IA' }
+// Al cambiar entre hombre y mujer se ajustan los rasgos típicos para que el cambio se note de inmediato
+const FEM_HAIR = ['largo', 'ondulado', 'trenzas', 'cola', 'recogido']
+function genderSwitch(a, body) {
+  if (body === 'hombre') return {
+    ...a, body,
+    hair: FEM_HAIR.includes(a.hair) ? 'corto' : a.hair,
+    brows: 'gruesas',
+    top: a.top === 'vestido' ? 'polo' : a.top,
+    accessories: a.accessories.filter((k) => k !== 'flor' && k !== 'aretes')
+  }
+  return { ...a, body, hair: ['corto', 'rapado'].includes(a.hair) ? 'largo' : a.hair, brows: 'finas', facial: 'ninguno' }
+}
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)]
 
 export default function AvatarEditor({ onChange }) {
@@ -88,7 +100,7 @@ export default function AvatarEditor({ onChange }) {
       <div className="row" style={{ alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
         <div className="avatar-preview" dangerouslySetInnerHTML={{ __html: avatarSVG(a) }} />
         <div className="stack-sm" style={{ flex: 1, minWidth: 180 }}>
-          <Segmented label="Personaje" value={a.body} onChange={(v) => set({ body: v, facial: v === 'mujer' ? 'ninguno' : a.facial })} options={Object.entries(BODIES).map(([value, label]) => ({ value, label }))} />
+          <Segmented label="Personaje" value={a.body} onChange={(v) => v !== a.body && save(genderSwitch(a, v))} options={Object.entries(BODIES).map(([value, label]) => ({ value, label }))} />
           <div className="row-wrap">
             <button type="button" className="btn btn-sm" onClick={random}><Shuffle size={16} /> Sorpréndeme</button>
             <button type="button" className="btn btn-sm btn-ghost" onClick={() => save({ ...DEFAULT_AVATAR, body: a.body })}><RotateCcw size={16} /> Reiniciar</button>

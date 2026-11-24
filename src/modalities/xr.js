@@ -3,12 +3,14 @@
 import { TEXTURES } from './textures'
 import { terrainHeight, terrainNoise } from './terrainMath'
 import { registerAvatar } from './avatar3d'
+import { registerPlanet } from './planets'
 
 export function registerXR() {
   const A = window.AFRAME
   if (!A || A.components['water-surface']) return
   const THREE = A.THREE
   registerAvatar(A)
+  registerPlanet(A)
 
   // ---------- Iluminación realista: mapa de entorno + tone mapping ----------
   A.registerComponent('env-light', {
@@ -375,14 +377,29 @@ export function registerXR() {
     schema: { yaw: { default: 0 } },
     init() {
       this.target = new THREE.Quaternion()
-      this.seat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.data.yaw)
+      this.inv = new THREE.Quaternion()
+    },
+    update() {
+      // La cabeza recibe la orientación en el mundo compartido; se pasa al marco del cuerpo
+      this.inv.setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.data.yaw).invert()
     },
     setPose(q) {
       if (!q) return
-      this.target.set(q[0], q[1], q[2], q[3]).premultiply(this.seat)
+      this.target.set(q[0], q[1], q[2], q[3]).premultiply(this.inv)
+      // Límites naturales: la cabeza gira hasta ~35°; si la persona mira más al costado, gira el cuerpo entero
+      const e = new THREE.Euler().setFromQuaternion(this.target, 'YXZ')
+      const yaw = Math.max(-2.6, Math.min(2.6, e.y))
+      this.bodyYaw = Math.sign(yaw) * Math.max(0, Math.abs(yaw) - 0.6)
+      this.e = { x: Math.max(-0.7, Math.min(0.6, e.x)), y: yaw, z: Math.max(-0.35, Math.min(0.35, e.z)) }
     },
     tick() {
-      this.el.object3D.quaternion.slerp(this.target, 0.2)
+      const parent = this.el.parentNode?.object3D
+      if (this.e && parent) {
+        parent.rotation.y += (this.bodyYaw - parent.rotation.y) * 0.08
+        this.local = this.local || new THREE.Quaternion()
+        this.local.setFromEuler(new THREE.Euler(this.e.x, this.e.y - parent.rotation.y, this.e.z, 'YXZ'))
+        this.el.object3D.quaternion.slerp(this.local, 0.2)
+      } else this.el.object3D.quaternion.slerp(this.target, 0.2)
     }
   })
 }
