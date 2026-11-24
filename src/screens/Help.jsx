@@ -41,7 +41,7 @@ export default function Help() {
   )
 
   return (
-    <div style={{ maxWidth: 820 }} className="stack">
+    <div className="wide-cols">
       <div className="page-head" style={{ marginBottom: 0 }}>
         <h1>Pausa segura</h1>
         <p>Si necesitas más apoyo, no estás a solas. Elige con quién quieres hablar.</p>

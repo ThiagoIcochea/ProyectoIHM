@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { setState, uid } from '../lib/store'
+import { setState, uid, useStore } from '../lib/store'
 import { EMOTIONS } from '../lib/emotions'
 import { Chip, Segmented, VoiceHints } from '../components/ui'
 import { useVoiceCommands } from '../lib/voice'
@@ -22,6 +22,7 @@ export default function Checkin() {
   const [level, setLevel] = useState(3)
   const [note, setNote] = useState('')
   const navigate = useNavigate()
+  const recent = useStore((st) => st.checkins).slice(0, 6)
 
   const toggle = (id) => setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
 
@@ -62,7 +63,8 @@ export default function Checkin() {
   )
 
   return (
-    <div className="stack" style={{ maxWidth: 720 }}>
+    <div className="checkin-layout">
+    <div className="stack">
       <div className="page-head" style={{ marginBottom: 0 }}>
         <h1>¿Cómo te sientes hoy?</h1>
         <p>Puedes elegir más de una. No hay respuestas correctas.</p>
@@ -92,6 +94,22 @@ export default function Checkin() {
         </div>
       </div>
       <VoiceHints items={['me siento ansioso y triste', 'intensidad 4', 'continuar']} />
+    </div>
+    <aside className="stack checkin-side" aria-label="Tus últimos registros">
+      <div className="card stack-sm">
+        <h3>Tus últimos registros</h3>
+        {recent.length === 0 ? <p className="muted small">Aún no hay registros. El primero aparecerá aquí.</p> : recent.map((c) => (
+          <div key={c.id} className="row between" style={{ gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+            <span className="row-wrap" style={{ gap: 4 }}>{c.emotions.map((id) => { const e = EMOTIONS.find((x) => x.id === id); return e ? <span key={id} className="tag"><span className="dot" style={{ color: e.color }} /> {e.label}</span> : null })}</span>
+            <span className="muted small tnum" style={{ whiteSpace: 'nowrap' }}>{c.intensity}/5 · {new Date(c.date).toLocaleDateString('es-PE', { day: 'numeric', month: 'short' })}</span>
+          </div>
+        ))}
+      </div>
+      <div className="card stack-sm">
+        <h3>¿Para qué sirve?</h3>
+        <p className="muted small">Ponerle nombre a lo que sientes ayuda a regularlo. Con el tiempo verás patrones: qué días pesan más y qué te ayuda.</p>
+      </div>
+    </aside>
     </div>
   )
 }

@@ -638,3 +638,19 @@ input[type='range'] { width: 100%; accent-color: var(--primary); height: 32px; }
 .sheet-grip-zone { display: grid; place-items: center; height: 26px; margin: -8px -20px 4px; cursor: grab; touch-action: none; }
 .sheet-grip-zone .sheet-grip { margin: 0; }
 @media (min-width: 700px) { .sheet-grip-zone { display: none; } }
+/* ---------- Escritorio: aprovechar el ancho ---------- */
+.wide-cols > * + * { margin-top: 16px; }
+@media (min-width: 1100px) {
+  .wide-cols { columns: 2 420px; column-gap: 20px; }
+  .wide-cols > * { break-inside: avoid; margin: 0 0 16px; display: block; }
+  .wide-cols > .page-head, .wide-cols > .mod-head, .wide-cols > .notice { column-span: all; }
+  .wide-cols > .card.stack, .wide-cols > section.stack-sm { display: flex; }
+  .journal-layout { display: grid; grid-template-columns: minmax(360px, 1fr) 1fr; gap: 20px; align-items: start; }
+  .journal-editor { position: sticky; top: calc(var(--header-h) + 16px); }
+  .checkin-layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr); gap: 20px; align-items: start; }
+  .checkin-side { position: sticky; top: calc(var(--header-h) + 16px); }
+}
+.journal-layout { display: flex; flex-direction: column; gap: 16px; }
+@media (min-width: 1100px) { .journal-layout { display: grid; } }
+.checkin-layout { display: flex; flex-direction: column; gap: 16px; }
+@media (min-width: 1100px) { .checkin-layout { display: grid; } }

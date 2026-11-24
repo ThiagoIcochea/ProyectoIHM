@@ -8,7 +8,7 @@ import { resetAll, setState, useStore } from '../lib/store'
 import { testKey, explainError, hasKey } from '../lib/groq'
 import { supportsSR, supportsTTS, useVoice, spanishVoices, pickVoice, setVoiceFor } from '../lib/voice'
 import { Segmented, Switch, Notice } from '../components/ui'
-import { setDeviceKey, getProxy, setProxy, aiSource } from '../lib/groq'
+import { cleanKey, setDeviceKey, getProxy, setProxy, aiSource } from '../lib/groq'
 import { DESTINATIONS } from '../lib/intents'
 import { toast } from '../components/Toast'
 
@@ -55,9 +55,12 @@ export default function Profile() {
   }, [hash])
 
   const saveKey = async () => {
-    setState({ groqKey: key.trim() })
-    setDeviceKey(key.trim())
-    if (!key.trim()) return setTest(null)
+    const k = cleanKey(key)
+    setKey(k)
+    setState({ groqKey: k })
+    setDeviceKey(k)
+    if (!k) return setTest(null)
+    if (!k.startsWith('gsk_') || k.length < 40) return setTest('La clave de Groq empieza con “gsk_” y tiene unos 56 caracteres. Revisa que esté completa.')
     setTest('loading')
     try {
       await testKey()
@@ -69,7 +72,7 @@ export default function Profile() {
   }
 
   return (
-    <div className="stack" style={{ maxWidth: 760 }}>
+    <div className="wide-cols">
       <div className="page-head" style={{ marginBottom: 0 }}>
         <h1>Perfil</h1>
         <p>Tu cuenta es anónima. Todo se guarda solo en este navegador.</p>

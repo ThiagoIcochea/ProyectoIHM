@@ -43,8 +43,8 @@ export function JournalPanel({ compact = false, id = 'journal' }) {
   )
 
   return (
-    <div className="stack">
-      <div className="card stack">
+    <div className={compact ? 'stack' : 'journal-layout'}>
+      <div className="card stack journal-editor">
         <div className="field">
           <label className="label" htmlFor={`${id}-t`}>¿Qué pasó hoy?</label>
           <textarea id={`${id}-t`} className="textarea" value={text} onChange={(e) => setText(e.target.value)} placeholder="Escribe lo que quieras. Solo tú lo ves." maxLength={2000} />
@@ -96,7 +96,7 @@ export function JournalPanel({ compact = false, id = 'journal' }) {
 
 export default function Journal() {
   return (
-    <div style={{ maxWidth: 760 }}>
+    <div>
       <div className="page-head">
         <h1>Diario emocional</h1>
         <p>Escribir lo que sientes ayuda a ordenarlo. Se guarda solo en este dispositivo.</p>

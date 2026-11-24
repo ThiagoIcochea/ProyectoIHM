@@ -16,15 +16,18 @@ export function setProxy(url) {
   try { url ? localStorage.setItem(PROXY_KEY, url.trim()) : localStorage.removeItem(PROXY_KEY) } catch { /* nada */ }
 }
 const base = () => getProxy() || DIRECT
-export const CHAT_MODELS = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant']
+export const CHAT_MODELS = ['llama-3.3-70b-versatile', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'llama-3.1-8b-instant']
 export const FAST_MODEL = 'llama-3.1-8b-instant'
 export const STT_MODEL = 'whisper-large-v3-turbo'
 
+// Limpia lo que a veces se pega junto con la clave: comillas, "Bearer", espacios o caracteres invisibles
+export const cleanKey = (k) => String(k || '').replace(/^\s*(authorization:\s*)?bearer\s+/i, '').replace(/[^A-Za-z0-9_-]/g, '')
 export function getKey() {
-  return (getState().groqKey || ls(DEVICE_KEY) || import.meta.env.VITE_GROQ_API_KEY || '').trim()
+  return cleanKey(getState().groqKey || ls(DEVICE_KEY) || import.meta.env.VITE_GROQ_API_KEY || '')
 }
 // La clave es del dispositivo (sirve para todas las cuentas de este navegador)
 export function setDeviceKey(k) {
+  k = cleanKey(k)
   try { k ? localStorage.setItem(DEVICE_KEY, k) : localStorage.removeItem(DEVICE_KEY) } catch { /* nada */ }
 }
 export const hasKey = () => !!getProxy() || getKey().length > 10
@@ -63,11 +66,34 @@ async function post(path, body, signal) {
   return res.json()
 }
 
+// Modelos disponibles para esta clave (se consultan una vez). Así no falla si Groq retira un modelo.
+let available = null
+export async function listModels() {
+  const res = await fetch(`${base()}/models`, { headers: authHeaders() })
+  if (!res.ok) {
+    const err = new Error(`HTTP_${res.status}`)
+    err.status = res.status
+    err.detail = await res.text().catch(() => '')
+    throw err
+  }
+  const data = await res.json()
+  available = (data.data || []).filter((m) => m.active !== false).map((m) => m.id)
+  return available
+}
+const isChatModel = (id) => !/whisper|tts|guard|orpheus|playai|distil|compound|safeguard/i.test(id)
+async function usable(prefs) {
+  if (!available) { try { await listModels() } catch { return prefs } }
+  const ok = prefs.filter((m) => available.includes(m))
+  if (ok.length) return ok
+  return available.filter(isChatModel).slice(0, 3)
+}
+
 export async function chatComplete(messages, { json = false, models = CHAT_MODELS, maxTokens = 400, signal } = {}) {
   let lastErr
-  for (const model of models) {
+  for (const model of await usable(models)) {
     try {
-      const body = { model, messages, temperature: json ? 0 : 0.7, max_tokens: maxTokens }
+      const body = { model, messages, temperature: json ? 0 : 0.7, max_tokens: /gpt-oss|qwen3/.test(model) ? Math.max(maxTokens, 600) : maxTokens }
+      if (/gpt-oss/.test(model)) body.reasoning_effort = 'low'
       if (json) body.response_format = { type: 'json_object' }
       const data = await post('/chat/completions', body, signal)
       const text = data?.choices?.[0]?.message?.content?.trim()
@@ -98,21 +124,26 @@ export async function transcribe(blob) {
   return (data.text || '').trim()
 }
 
+// Verifica la clave pidiendo la lista de modelos (no depende de que un modelo concreto siga activo)
 export async function testKey() {
-  const t = await chatComplete([{ role: 'user', content: 'Responde solo: ok' }], { models: [FAST_MODEL], maxTokens: 5 })
-  return !!t
+  available = null
+  const ids = await listModels()
+  return ids.length > 0
 }
 
 export function explainError(e) {
   if (!e) return 'Ocurrió un error.'
   if (e.message === 'NO_KEY') return 'Falta la clave de Groq. Agrégala en Perfil → Inteligencia artificial.'
-  if (e.status === 401) return 'La clave de Groq no es válida. Revísala en Perfil.'
+  if (e.status === 401) return 'Groq rechazó la clave (401): no es válida o fue revocada. Crea una nueva en console.groq.com/keys y pégala completa.'
+  if (e.status === 403) return 'Groq bloqueó la solicitud (403). Puede que tu cuenta o región no tenga acceso; prueba con el proxy en Perfil.'
   if (e.status === 429) return 'La IA recibió muchas solicitudes. Espera unos segundos e inténtalo otra vez.'
   if (e.name === 'TypeError')
     return getProxy()
       ? 'No se pudo conectar con el proxy de IA. Revisa la dirección en Perfil.'
       : 'El navegador no pudo conectarse con Groq (sin internet o conexión bloqueada por el navegador). Si persiste, configura un proxy en Perfil → Inteligencia artificial.'
-  return 'La IA no respondió. Usaré respuestas básicas mientras tanto.'
+  let det = ''
+  try { det = JSON.parse(e.detail || '{}')?.error?.message || '' } catch { /* nada */ }
+  return `La IA no respondió${e.status ? ` (${e.status})` : ''}${det ? `: ${det.slice(0, 120)}` : ''}. Usaré respuestas básicas mientras tanto.`
 }
 
 // Visión: describe una imagen y devuelve JSON (para crear personajes a partir de una foto o dibujo)

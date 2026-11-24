@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Sparkles } from 'lucide-react'
-import { hasKey, setDeviceKey, testKey, explainError } from '../lib/groq'
+import { hasKey, setDeviceKey, testKey, explainError, cleanKey } from '../lib/groq'
 import { setState, useStore } from '../lib/store'
 
 // Aviso con campo para activar la IA sin salir de la pantalla
@@ -11,7 +11,7 @@ export default function AiKeyNotice({ who = 'Escucha' }) {
   const [msg, setMsg] = useState('')
   if (hasKey()) return null
   const save = async () => {
-    const k = key.trim()
+    const k = cleanKey(key)
     if (!k) return
     setState({ groqKey: k })
     setDeviceKey(k)

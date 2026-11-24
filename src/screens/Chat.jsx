@@ -155,7 +155,7 @@ export function ChatPanel({ compact = false, id = 'chat' }) {
 
 export default function Chat() {
   return (
-    <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', minHeight: '60dvh' }}>
+    <div style={{ maxWidth: 920, margin: '0 auto', display: 'flex', flexDirection: 'column', minHeight: '60dvh' }}>
       <ChatPanel />
     </div>
   )

@@ -68,7 +68,7 @@ export default function Devices() {
 
   const has = (c) => b.caps.includes(c)
   return (
-    <div className="stack" style={{ maxWidth: 900 }}>
+    <div className="wide-cols">
       <div className="mod-head">
         <div className="stack-sm" style={{ maxWidth: 600 }}>
           <h1>Mis dispositivos</h1>
