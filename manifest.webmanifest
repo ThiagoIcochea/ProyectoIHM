@@ -1,0 +1,12 @@
+{
+  "name": "Escucha",
+  "short_name": "Escucha",
+  "description": "Acompañamiento emocional anónimo con voz, reloj, IoT, RV, mapa 3D y gestos.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F0F8FD",
+  "theme_color": "#0966BF",
+  "lang": "es-PE",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
