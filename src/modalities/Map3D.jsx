@@ -27,23 +27,42 @@ function distanceKm(a, b) {
   return 2 * R * Math.asin(Math.sqrt(x))
 }
 
-async function fetchPlaces({ lat, lon }, radius = 3000) {
-  const q = `[out:json][timeout:25];(nwr["amenity"~"^(hospital|clinic|doctors)$"](around:${radius},${lat},${lon});nwr["healthcare"~"^(psychologist|psychotherapist|counselling)$"](around:${radius},${lat},${lon}););out center 80;`
+// Salud mental primero: psicología, psicoterapia, consejería, psiquiatría y Centros de Salud Mental Comunitarios (CSMC)
+const MENTAL_NAME = /salud mental|psicol|psiqui|psicoterap|csmc|consejer|bienestar emocional|mental health/i
+const MENTAL_KIND = ['psychologist', 'psychotherapist', 'counselling']
+export const MENTAL_COLOR = '#8A5BD6'
+
+async function fetchPlaces({ lat, lon }, radius = 3000, mentalRadius = 8000) {
+  const a = (r) => `(around:${r},${lat},${lon})`
+  const q = `[out:json][timeout:25];(
+    nwr["healthcare"~"^(psychologist|psychotherapist|counselling)$"]${a(mentalRadius)};
+    nwr["healthcare:speciality"~"psychiatry|psychology|mental",i]${a(mentalRadius)};
+    nwr["amenity"~"^(clinic|doctors|hospital|social_facility)$"]["name"~"salud mental|psicol|psiqui|CSMC|consejer",i]${a(mentalRadius)};
+    nwr["office"]["name"~"psicol|salud mental",i]${a(mentalRadius)};
+    nwr["amenity"~"^(hospital|clinic|doctors)$"]${a(radius)};
+  );out center 150;`
   const res = await fetch(OVERPASS, { method: 'POST', body: new URLSearchParams({ data: q }) })
   if (!res.ok) throw new Error(`HTTP_${res.status}`)
   const data = await res.json()
+  const seen = new Set()
   return data.elements
     .map((e) => {
       const t = e.tags || {}
       const plat = e.lat ?? e.center?.lat
       const plon = e.lon ?? e.center?.lon
       if (!t.name || plat == null) return null
+      const id = `${e.type}/${e.id}`
+      if (seen.has(id)) return null
+      seen.add(id)
       const kind = t.healthcare && TYPE[t.healthcare] ? t.healthcare : t.amenity
+      const mental = MENTAL_KIND.includes(t.healthcare) || /psychiatry|psychology|mental/i.test(t['healthcare:speciality'] || '') || MENTAL_NAME.test(t.name)
+      let type = TYPE[kind] || 'Salud'
+      if (mental) type = /csmc|salud mental comunitari/i.test(t.name) ? 'Centro de Salud Mental Comunitario' : /psiqui/i.test(t.name) || /psychiatry/i.test(t['healthcare:speciality'] || '') ? 'Psiquiatría' : TYPE[t.healthcare] || 'Psicología y salud mental'
       return {
-        id: `${e.type}/${e.id}`,
+        id,
         name: t.name,
-        type: TYPE[kind] || 'Salud',
-        mental: ['psychologist', 'psychotherapist', 'counselling'].includes(kind) || /mental|psicol/i.test(t['healthcare:speciality'] || ''),
+        type,
+        mental,
         lat: plat,
         lon: plon,
         phone: t.phone || t['contact:phone'] || '',
@@ -53,7 +72,8 @@ async function fetchPlaces({ lat, lon }, radius = 3000) {
       }
     })
     .filter(Boolean)
-    .sort((a, b) => a.dist - b.dist)
+    // primero salud mental (por distancia), luego el resto
+    .sort((x, y) => (x.mental === y.mental ? x.dist - y.dist : x.mental ? -1 : 1))
 }
 
 export default function Map3D() {
@@ -68,6 +88,9 @@ export default function Map3D() {
   const [mapErr, setMapErr] = useState('')
   const [sel, setSel] = useState(null)
   const [is3d, setIs3d] = useState(true)
+  const [onlyMental, setOnlyMental] = useState(true)
+  const mentalCount = places.filter((p) => p.mental).length
+  const shown = (onlyMental && mentalCount ? places.filter((p) => p.mental) : places).slice(0, 60)
   const theme = useStore((s) => s.theme)
 
   // Crear mapa
@@ -155,16 +178,16 @@ export default function Map3D() {
   useEffect(() => {
     markers.current.forEach((mk) => mk.remove())
     if (!map.current) return
-    markers.current = places.slice(0, 40).map((p) => {
+    markers.current = shown.map((p) => {
       const el = document.createElement('button')
-      el.className = 'map-marker'
-      el.style.background = p.mental ? 'var(--success)' : 'var(--primary)'
+      el.className = `map-marker${p.mental ? ' mental' : ''}`
+      if (p.mental) el.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10z"/></svg>'
       el.setAttribute('aria-label', p.name)
       el.addEventListener('click', () => select(p))
       return new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([p.lon, p.lat]).addTo(map.current)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [places])
+  }, [places, onlyMental])
 
   const select = (p) => {
     setSel(p.id)
@@ -213,7 +236,16 @@ export default function Map3D() {
         <div className="stack-sm">
           <span className="muted small">6 de 7 · OpenStreetMap · 3D</span>
           <h2>Ayuda cerca de ti</h2>
-          <p className="muted small">{usingGeo ? 'Lugares a menos de 3 km de tu ubicación.' : 'Mostrando Lima centro. Permite tu ubicación para ver lo más cercano.'} Verde: psicología o consejería.</p>
+          <p className="muted small">{usingGeo ? 'Salud mental a menos de 8 km y otros centros a menos de 3 km de ti.' : 'Mostrando Lima centro. Permite tu ubicación para ver lo más cercano.'}</p>
+          <div className="map-legend">
+            <span><i className="dot" style={{ color: MENTAL_COLOR }} /> Psicología y salud mental ({mentalCount})</span>
+            <span><i className="dot" style={{ color: 'var(--primary)' }} /> Otros centros de salud</span>
+          </div>
+          <div className="segmented" role="radiogroup" aria-label="Qué mostrar" style={{ alignSelf: 'flex-start' }}>
+            <button role="radio" aria-checked={onlyMental} onClick={() => setOnlyMental(true)}>Salud mental</button>
+            <button role="radio" aria-checked={!onlyMental} onClick={() => setOnlyMental(false)}>Todos</button>
+          </div>
+          {onlyMental && state === 'ok' && !mentalCount && <p className="muted small">No hay centros de salud mental registrados cerca; te mostramos todos los centros de salud. También puedes llamar a la Línea 113, opción 5.</p>}
         </div>
         {state === 'loading' && <p className="muted" role="status">Buscando centros de salud…</p>}
         {state === 'error' && (
@@ -225,8 +257,8 @@ export default function Map3D() {
           </div>
         )}
         {state === 'empty' && <p className="muted">No hay centros con nombre registrados en 3 km. Prueba alejar el mapa o usa la Línea 113.</p>}
-        {places.slice(0, 40).map((p) => (
-          <div key={p.id} id={`pl-${p.id.replace('/', '-')}`} className="place" aria-current={sel === p.id} role="button" tabIndex={0} onClick={() => select(p)} onKeyDown={(e) => e.key === 'Enter' && select(p)}>
+        {shown.map((p) => (
+          <div key={p.id} id={`pl-${p.id.replace('/', '-')}`} className={`place${p.mental ? ' mental' : ''}`} aria-current={sel === p.id} role="button" tabIndex={0} onClick={() => select(p)} onKeyDown={(e) => e.key === 'Enter' && select(p)}>
             <div className="row between" style={{ alignItems: 'flex-start' }}>
               <b>{p.name}</b>
               <span className="tag tnum">{p.dist < 1 ? `${Math.round(p.dist * 1000)} m` : `${p.dist.toFixed(1)} km`}</span>

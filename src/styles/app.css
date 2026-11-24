@@ -627,3 +627,14 @@ input[type='range'] { width: 100%; accent-color: var(--primary); height: 32px; }
 /* Santuario en el móvil: deja ver y desplazar la información de abajo */
 .vr-wrap .a-canvas { touch-action: pan-y !important; }
 @media (max-width: 959px) { .vr-wrap { height: min(72dvh, calc(100dvh - var(--header-h) - var(--nav-h) - 40px)); } }
+/* Mapa: salud mental con color propio */
+.map-marker.mental { background: #8A5BD6 !important; width: 36px; height: 36px; display: grid; place-items: center; box-shadow: 0 0 0 4px rgba(138, 91, 214, 0.28), 0 4px 10px rgba(0,0,0,.3); }
+.map-marker.mental svg { transform: rotate(45deg); }
+.place.mental { border-left: 5px solid #8A5BD6; }
+.place.mental b::after { content: ' · Salud mental'; color: #8A5BD6; font-size: 0.8rem; font-weight: 700; }
+.map-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.82rem; color: var(--ink-2); }
+.map-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sheet { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+.sheet-grip-zone { display: grid; place-items: center; height: 26px; margin: -8px -20px 4px; cursor: grab; touch-action: none; }
+.sheet-grip-zone .sheet-grip { margin: 0; }
+@media (min-width: 700px) { .sheet-grip-zone { display: none; } }
