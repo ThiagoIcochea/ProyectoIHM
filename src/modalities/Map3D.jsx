@@ -8,7 +8,8 @@ import { useStore } from '../lib/store'
 // Mapa base: OpenFreeMap (datos de OpenStreetMap, sin clave). Lugares: Overpass API (OSM). Nada es inventado.
 const STYLE = 'https://tiles.openfreemap.org/styles/liberty'
 const LIMA = { lat: -12.0464, lon: -77.0428 }
-const OVERPASS = 'https://overpass-api.de/api/interpreter'
+// Servidores públicos de Overpass: si uno está saturado (pasa seguido), se prueba el siguiente
+const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter']
 
 const TYPE = {
   hospital: 'Hospital',
@@ -32,32 +33,54 @@ const MENTAL_NAME = /salud mental|psicol|psiqui|psicoterap|csmc|consejer|bienest
 const MENTAL_KIND = ['psychologist', 'psychotherapist', 'counselling']
 export const MENTAL_COLOR = '#8A5BD6'
 
+async function overpass(q) {
+  let last
+  for (const url of OVERPASS) {
+    const ctl = new AbortController()
+    const timer = setTimeout(() => ctl.abort(), 35000)
+    try {
+      const res = await fetch(url, { method: 'POST', body: new URLSearchParams({ data: q }), signal: ctl.signal })
+      if (!res.ok) throw new Error(`HTTP_${res.status}`)
+      const data = await res.json()
+      // Overpass responde 200 aunque la consulta se corte por tiempo: eso no es "no hay centros"
+      if (data.remark && /error|timed out|out of memory/i.test(data.remark)) throw new Error('OVERPASS_TIMEOUT')
+      return data
+    } catch (e) {
+      last = e
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+  throw last || new Error('OVERPASS')
+}
+
 async function fetchPlaces({ lat, lon }, radius = 3000, mentalRadius = 8000) {
   const a = (r) => `(around:${r},${lat},${lon})`
-  const q = `[out:json][timeout:25];(
-    nwr["healthcare"~"^(psychologist|psychotherapist|counselling)$"]${a(mentalRadius)};
-    nwr["healthcare:speciality"~"psychiatry|psychology|mental",i]${a(mentalRadius)};
-    nwr["amenity"~"^(clinic|doctors|hospital|social_facility)$"]["name"~"salud mental|psicol|psiqui|CSMC|consejer",i]${a(mentalRadius)};
-    nwr["office"]["name"~"psicol|salud mental",i]${a(mentalRadius)};
+  // En Perú muchos centros están etiquetados solo con "healthcare" (sin "amenity"), por eso se piden ambos
+  const q = `[out:json][timeout:45];(
+    nwr["healthcare"]${a(Math.max(radius, mentalRadius))};
     nwr["amenity"~"^(hospital|clinic|doctors)$"]${a(radius)};
-  );out center 150;`
-  const res = await fetch(OVERPASS, { method: 'POST', body: new URLSearchParams({ data: q }) })
-  if (!res.ok) throw new Error(`HTTP_${res.status}`)
-  const data = await res.json()
+    nwr["amenity"~"^(clinic|doctors|social_facility|community_centre)$"]["name"~"psicol|psiqui|salud mental|CSMC|consejer",i]${a(mentalRadius)};
+  );out center tags 400;`
+  const data = await overpass(q)
   const seen = new Set()
   return data.elements
     .map((e) => {
-      const t = e.tags || {}
+      const t = { ...(e.tags || {}) }
+      t.name = t.name || t['name:es'] || t.official_name || t.operator || ''
       const plat = e.lat ?? e.center?.lat
       const plon = e.lon ?? e.center?.lon
       if (!t.name || plat == null) return null
       const id = `${e.type}/${e.id}`
       if (seen.has(id)) return null
       seen.add(id)
-      const kind = t.healthcare && TYPE[t.healthcare] ? t.healthcare : t.amenity
+      if (/^(pharmacy|laboratory|optometrist|dentist|blood_donation|vaccination_centre)$/.test(t.healthcare || '')) return null
+      const kind = t.healthcare && TYPE[t.healthcare] ? t.healthcare : t.amenity || (t.healthcare === 'centre' ? 'clinic' : t.healthcare === 'doctor' ? 'doctors' : t.healthcare)
       const mental = MENTAL_KIND.includes(t.healthcare) || /psychiatry|psychology|mental/i.test(t['healthcare:speciality'] || '') || MENTAL_NAME.test(t.name)
       let type = TYPE[kind] || 'Salud'
       if (mental) type = /csmc|salud mental comunitari/i.test(t.name) ? 'Centro de Salud Mental Comunitario' : /psiqui/i.test(t.name) || /psychiatry/i.test(t['healthcare:speciality'] || '') ? 'Psiquiatría' : TYPE[t.healthcare] || 'Psicología y salud mental'
+      const dist = distanceKm({ lat, lon }, { lat: plat, lon: plon })
+      if (!mental && dist > radius / 1000) return null
       return {
         id,
         name: t.name,
@@ -68,7 +91,7 @@ async function fetchPlaces({ lat, lon }, radius = 3000, mentalRadius = 8000) {
         phone: t.phone || t['contact:phone'] || '',
         address: [t['addr:street'], t['addr:housenumber']].filter(Boolean).join(' '),
         hours: t.opening_hours || '',
-        dist: distanceKm({ lat, lon }, { lat: plat, lon: plon })
+        dist
       }
     })
     .filter(Boolean)
@@ -152,14 +175,30 @@ export default function Map3D() {
   useEffect(locate, [])
 
   // Cargar lugares reales alrededor
-  const load = () => {
+  // Si no hay nada cerca, amplía el radio (3 → 6 → 12 km) antes de decir que no hay centros
+  const [radiusKm, setRadiusKm] = useState(3)
+  const [errMsg, setErrMsg] = useState('')
+  const load = async (center = pos) => {
     setStateL('loading')
-    fetchPlaces(pos)
-      .then((list) => {
-        setPlaces(list)
-        setStateL(list.length ? 'ok' : 'empty')
-      })
-      .catch(() => setStateL('error'))
+    setErrMsg('')
+    try {
+      for (const r of [3, 6, 12]) {
+        const list = await fetchPlaces(center, r * 1000, Math.max(8000, r * 1000))
+        if (list.length || r === 12) {
+          setRadiusKm(r)
+          setPlaces(list)
+          setStateL(list.length ? 'ok' : 'empty')
+          return
+        }
+      }
+    } catch (e) {
+      setErrMsg(e.message === 'OVERPASS_TIMEOUT' ? 'Los servidores de OpenStreetMap están saturados en este momento.' : e.name === 'TypeError' ? 'No hay conexión con OpenStreetMap.' : '')
+      setStateL('error')
+    }
+  }
+  const searchHere = () => {
+    const c = map.current?.getCenter()
+    if (c) load({ lat: c.lat, lon: c.lng })
   }
   useEffect(() => {
     map.current?.flyTo({ center: [pos.lon, pos.lat], zoom: 15, pitch: is3d ? 60 : 0, essential: true })
@@ -236,7 +275,8 @@ export default function Map3D() {
         <div className="stack-sm">
           <span className="muted small">6 de 7 · OpenStreetMap · 3D</span>
           <h2>Ayuda cerca de ti</h2>
-          <p className="muted small">{usingGeo ? 'Salud mental a menos de 8 km y otros centros a menos de 3 km de ti.' : 'Mostrando Lima centro. Permite tu ubicación para ver lo más cercano.'}</p>
+          <p className="muted small">{usingGeo ? `Salud mental a menos de ${Math.max(8, radiusKm)} km y otros centros a menos de ${radiusKm} km de ti.` : 'Mostrando Lima centro. Permite tu ubicación para ver lo más cercano.'}</p>
+          <button className="btn btn-sm" style={{ alignSelf: 'flex-start' }} onClick={searchHere}><RefreshCw size={16} /> Buscar en esta zona del mapa</button>
           <div className="map-legend">
             <span><i className="dot" style={{ color: MENTAL_COLOR }} /> Psicología y salud mental ({mentalCount})</span>
             <span><i className="dot" style={{ color: 'var(--primary)' }} /> Otros centros de salud</span>
@@ -251,12 +291,12 @@ export default function Map3D() {
         {state === 'error' && (
           <div className="notice warn">
             <div className="stack-sm">
-              <span>No pude consultar OpenStreetMap ahora.</span>
-              <button className="btn btn-sm" onClick={load}><RefreshCw size={16} /> Reintentar</button>
+              <span>No pude consultar OpenStreetMap ahora. {errMsg} Esto no significa que no haya centros cerca.</span>
+              <button className="btn btn-sm" onClick={() => load()}><RefreshCw size={16} /> Reintentar</button>
             </div>
           </div>
         )}
-        {state === 'empty' && <p className="muted">No hay centros con nombre registrados en 3 km. Prueba alejar el mapa o usa la Línea 113.</p>}
+        {state === 'empty' && <p className="muted">OpenStreetMap no tiene centros de salud registrados a menos de 12 km de este punto. Puede que existan pero nadie los haya agregado al mapa: mueve el mapa y toca "Buscar en esta zona", o llama a la Línea 113, opción 5.</p>}
         {shown.map((p) => (
           <div key={p.id} id={`pl-${p.id.replace('/', '-')}`} className={`place${p.mental ? ' mental' : ''}`} aria-current={sel === p.id} role="button" tabIndex={0} onClick={() => select(p)} onKeyDown={(e) => e.key === 'Enter' && select(p)}>
             <div className="row between" style={{ alignItems: 'flex-start' }}>
