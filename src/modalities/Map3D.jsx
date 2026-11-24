@@ -9,7 +9,7 @@ import { useStore } from '../lib/store'
 const STYLE = 'https://tiles.openfreemap.org/styles/liberty'
 const LIMA = { lat: -12.0464, lon: -77.0428 }
 // Servidores públicos de Overpass: si uno está saturado (pasa seguido), se prueba el siguiente
-const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter']
+const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter']
 
 const TYPE = {
   hospital: 'Hospital',
@@ -37,16 +37,18 @@ async function overpass(q) {
   let last
   for (const url of OVERPASS) {
     const ctl = new AbortController()
-    const timer = setTimeout(() => ctl.abort(), 35000)
+    const timer = setTimeout(() => ctl.abort(), 20000)
     try {
       const res = await fetch(url, { method: 'POST', body: new URLSearchParams({ data: q }), signal: ctl.signal })
-      if (!res.ok) throw new Error(`HTTP_${res.status}`)
+      if (!res.ok) throw Object.assign(new Error(`HTTP_${res.status}`), { detail: `${new URL(url).host} respondió ${res.status}` })
       const data = await res.json()
       // Overpass responde 200 aunque la consulta se corte por tiempo: eso no es "no hay centros"
       if (data.remark && /error|timed out|out of memory/i.test(data.remark)) throw new Error('OVERPASS_TIMEOUT')
       return data
     } catch (e) {
       last = e
+      last.detail = last.detail || `${new URL(url).host}: ${e.name === 'AbortError' ? 'no respondió a tiempo' : e.message}`
+      console.warn('Overpass', url, e)
     } finally {
       clearTimeout(timer)
     }
@@ -55,12 +57,23 @@ async function overpass(q) {
 }
 
 async function fetchPlaces({ lat, lon }, radius = 3000, mentalRadius = 8000) {
-  const a = (r) => `(around:${r},${lat},${lon})`
+  // Caja (bbox) en vez de "around": Overpass la resuelve mucho más rápido y no se satura.
+  // La distancia exacta se filtra después en el navegador.
+  const box = (m) => {
+    const dLat = m / 111320
+    const dLon = m / (111320 * Math.cos((lat * Math.PI) / 180))
+    return `(${(lat - dLat).toFixed(5)},${(lon - dLon).toFixed(5)},${(lat + dLat).toFixed(5)},${(lon + dLon).toFixed(5)})`
+  }
+  const R = box(radius)
+  const M = box(Math.max(radius, mentalRadius))
   // En Perú muchos centros están etiquetados solo con "healthcare" (sin "amenity"), por eso se piden ambos
-  const q = `[out:json][timeout:45];(
-    nwr["healthcare"]${a(Math.max(radius, mentalRadius))};
-    nwr["amenity"~"^(hospital|clinic|doctors)$"]${a(radius)};
-    nwr["amenity"~"^(clinic|doctors|social_facility|community_centre)$"]["name"~"psicol|psiqui|salud mental|CSMC|consejer",i]${a(mentalRadius)};
+  const q = `[out:json][timeout:25];(
+    nwr["healthcare"~"^(psychologist|psychotherapist|counselling)$"]${M};
+    nwr["healthcare:speciality"~"psychiatry|psychology|mental"]${M};
+    nwr["name"~"psicol|psiqui|salud mental|CSMC",i]["amenity"]${M};
+    nwr["name"~"psicol|psiqui|salud mental|CSMC",i]["healthcare"]${M};
+    nwr["healthcare"~"^(hospital|clinic|centre|doctor)$"]${R};
+    nwr["amenity"~"^(hospital|clinic|doctors)$"]${R};
   );out center tags 400;`
   const data = await overpass(q)
   const seen = new Set()
@@ -192,7 +205,7 @@ export default function Map3D() {
         }
       }
     } catch (e) {
-      setErrMsg(e.message === 'OVERPASS_TIMEOUT' ? 'Los servidores de OpenStreetMap están saturados en este momento.' : e.name === 'TypeError' ? 'No hay conexión con OpenStreetMap.' : '')
+      setErrMsg(e.message === 'OVERPASS_TIMEOUT' ? 'Los servidores de OpenStreetMap están saturados en este momento.' : `Detalle: ${e.detail || e.message}.`)
       setStateL('error')
     }
   }
