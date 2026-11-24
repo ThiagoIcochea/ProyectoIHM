@@ -654,3 +654,10 @@ input[type='range'] { width: 100%; accent-color: var(--primary); height: 32px; }
 @media (min-width: 1100px) { .journal-layout { display: grid; } }
 .checkin-layout { display: flex; flex-direction: column; gap: 16px; }
 @media (min-width: 1100px) { .checkin-layout { display: grid; } }
+
+/* Santuario: el contenido bajo la escena no queda tapado por la barra inferior ni el micrófono */
+.shell[data-route='/m/inmersivo'] .main.bleed { padding-bottom: calc(var(--nav-h) + 112px + env(safe-area-inset-bottom)); }
+@media (min-width: 960px) { .shell[data-route='/m/inmersivo'] .main.bleed { padding-bottom: 48px; } }
+/* Botón de cuenta de la cabecera: objetivo táctil de 44 px en móvil */
+.header-acc { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 44px; min-height: 44px; }
+@media (max-width: 699px) { .header-acc { padding: 0 10px; border-radius: 12px; } .header-acc svg { width: 22px; height: 22px; } }

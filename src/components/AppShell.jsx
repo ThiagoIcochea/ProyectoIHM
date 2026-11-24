@@ -92,12 +92,12 @@ export default function AppShell() {
           )}
           <span className="spacer" />
           {acc ? (
-            <Link to="/perfil" className="tag" style={{ textDecoration: 'none', minHeight: 32 }} aria-label={`Sesión iniciada como ${acc.display}`}>
+            <Link to="/perfil" className="tag header-acc" style={{ textDecoration: 'none' }} aria-label={`Sesión iniciada como ${acc.display}`}>
               <UserRound size={14} aria-hidden="true" /> <span className="hide-sm">{acc.display}</span>
             </Link>
           ) : (
-            <Link to="/cuenta" className="btn btn-ghost btn-sm" style={{ minHeight: 40 }} aria-label="Ingresar o crear cuenta">
-              <LogIn size={16} aria-hidden="true" /> <span className="hide-sm">Ingresar</span>
+            <Link to="/cuenta" className="btn btn-ghost btn-sm header-acc" aria-label="Ingresar o crear cuenta">
+              <LogIn size={18} aria-hidden="true" /> <span className="hide-sm">Ingresar</span>
             </Link>
           )}
           <Link to="/ayuda" className="sos-btn" data-coach="sos" aria-label="SOS, pedir ayuda ahora">

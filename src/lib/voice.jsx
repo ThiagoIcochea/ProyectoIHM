@@ -91,6 +91,10 @@ export function VoiceProvider({ children }) {
   const pendingChatRef = useRef(null)
   const mediaRef = useRef(null)
   const restartRef = useRef(null)
+  const recActiveRef = useRef(false)
+  const recStartedAt = useRef(0)
+  const ttsTimers = useRef([])
+  const currentUtt = useRef(null)
   const lastSpokenRef = useRef({ text: '', until: 0 })
   const lastFinalRef = useRef({ text: '', at: 0 })
   const locRef = useRef(location.pathname)
@@ -113,7 +117,18 @@ export function VoiceProvider({ children }) {
     speakingRef.current = true
     try { recRef.current?.abort() } catch { /* nada */ }
     setStatus('speaking')
+    ttsTimers.current.forEach(clearInterval)
+    ttsTimers.current = []
+    let done = false
+    const t0 = Date.now()
+    currentUtt.current = u
     u.onend = u.onerror = () => {
+      if (done) return
+      done = true
+      // Un aviso tardío de una frase anterior (cancelada) no debe reactivar el micrófono
+      if (currentUtt.current !== u) return
+      ttsTimers.current.forEach(clearInterval)
+      ttsTimers.current = []
       speakingRef.current = false
       // Durante 4 s se descarta lo que suene igual a lo que la app acaba de decir (eco del parlante)
       lastSpokenRef.current = { text, until: Date.now() + 4000 }
@@ -122,10 +137,25 @@ export function VoiceProvider({ children }) {
       if (wantRef.current) setTimeout(() => restartRef.current?.(), 700)
     }
     speechSynthesis.speak(u)
+    // Algunos navegadores no avisan cuando terminan de hablar y el micrófono quedaba apagado:
+    // si ya no hay voz sonando (o pasó el tiempo máximo razonable), se da por terminado
+    const maxMs = 4000 + text.length * 95
+    ttsTimers.current.push(setInterval(() => {
+      const idle = !speechSynthesis.speaking && !speechSynthesis.pending
+      if ((idle && Date.now() - t0 > 1200) || Date.now() - t0 > maxMs) {
+        if (!idle) speechSynthesis.cancel()
+        u.onend()
+      }
+    }, 500))
+    // Chrome de escritorio corta las frases largas a los ~15 s si no se reanuda
+    if (!IS_ANDROID) ttsTimers.current.push(setInterval(() => { if (speechSynthesis.speaking) { speechSynthesis.pause(); speechSynthesis.resume() } }, 10000))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const silence = useCallback(() => {
+    currentUtt.current = null
+    ttsTimers.current.forEach(clearInterval)
+    ttsTimers.current = []
     if (supportsTTS) speechSynthesis.cancel()
     speakingRef.current = false
   }, [])
@@ -269,7 +299,7 @@ export function VoiceProvider({ children }) {
     rec.interimResults = true
     rec.continuous = getState().handsFree && !IS_ANDROID
     rec.maxAlternatives = 1
-    rec.onstart = () => setStatus('listening')
+    rec.onstart = () => { recActiveRef.current = true; setStatus('listening') }
     rec.onresult = (e) => {
       if (speakingRef.current) return
       let finalText = ''
@@ -292,6 +322,7 @@ export function VoiceProvider({ children }) {
       }
     }
     rec.onend = () => {
+      if (recRef.current === rec) recActiveRef.current = false
       setInterim('')
       if (wantRef.current && getState().handsFree && !speakingRef.current) {
         setTimeout(() => wantRef.current && !speakingRef.current && startRec(), IS_ANDROID ? 350 : 200)
@@ -301,8 +332,24 @@ export function VoiceProvider({ children }) {
       }
     }
     recRef.current = rec
-    try { rec.start() } catch { /* ya iniciado */ }
+    recStartedAt.current = Date.now()
+    recActiveRef.current = true
+    try { rec.start() } catch { recActiveRef.current = false }
   }, [handleFinal])
+
+  // Vigilante: si se pidió escuchar y el reconocimiento se apagó solo (error, corte de red,
+  // pestaña en segundo plano o un fin que el navegador no avisó), se vuelve a encender sin tocar nada
+  useEffect(() => {
+    if (!SR) return
+    const id = setInterval(() => {
+      if (!wantRef.current || speakingRef.current || document.hidden) return
+      const stale = Date.now() - recStartedAt.current > 2500
+      if (!recActiveRef.current && stale) startRec()
+    }, 1500)
+    const onVis = () => { if (!document.hidden && wantRef.current && !speakingRef.current) setTimeout(() => startRec(), 300) }
+    document.addEventListener('visibilitychange', onVis)
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVis) }
+  }, [startRec])
 
   // Respaldo: grabar hasta silencio y transcribir con Whisper (Groq)
   const startRecorder = useCallback(async () => {
