@@ -33,30 +33,63 @@ const MENTAL_NAME = /salud mental|psicol|psiqui|psicoterap|csmc|consejer|bienest
 const MENTAL_KIND = ['psychologist', 'psychotherapist', 'counselling']
 export const MENTAL_COLOR = '#8A5BD6'
 
+// Se consulta a los tres servidores a la vez y gana el primero que responda bien
+async function overpassOne(url, q, signal) {
+  const res = await fetch(url, { method: 'POST', body: new URLSearchParams({ data: q }), signal })
+  if (!res.ok) throw Object.assign(new Error(`HTTP_${res.status}`), { detail: `${new URL(url).host} respondió ${res.status}` })
+  const data = await res.json()
+  // Overpass responde 200 aunque la consulta se corte por tiempo: eso no es "no hay centros"
+  if (data.remark && /error|timed out|out of memory/i.test(data.remark)) throw Object.assign(new Error('OVERPASS_TIMEOUT'), { detail: `${new URL(url).host} se quedó sin tiempo` })
+  return data
+}
 async function overpass(q) {
-  let last
-  for (const url of OVERPASS) {
-    const ctl = new AbortController()
-    const timer = setTimeout(() => ctl.abort(), 20000)
-    try {
-      const res = await fetch(url, { method: 'POST', body: new URLSearchParams({ data: q }), signal: ctl.signal })
-      if (!res.ok) throw Object.assign(new Error(`HTTP_${res.status}`), { detail: `${new URL(url).host} respondió ${res.status}` })
-      const data = await res.json()
-      // Overpass responde 200 aunque la consulta se corte por tiempo: eso no es "no hay centros"
-      if (data.remark && /error|timed out|out of memory/i.test(data.remark)) throw new Error('OVERPASS_TIMEOUT')
-      return data
-    } catch (e) {
-      last = e
-      last.detail = last.detail || `${new URL(url).host}: ${e.name === 'AbortError' ? 'no respondió a tiempo' : e.message}`
-      console.warn('Overpass', url, e)
-    } finally {
-      clearTimeout(timer)
-    }
+  const ctl = new AbortController()
+  const timer = setTimeout(() => ctl.abort(), 15000)
+  try {
+    const data = await Promise.any(OVERPASS.map((u) => overpassOne(u, q, ctl.signal).catch((e) => {
+      e.detail = e.detail || `${new URL(u).host}: ${e.name === 'AbortError' ? 'no respondió a tiempo' : e.message}`
+      throw e
+    })))
+    ctl.abort() // cancela los que siguen esperando
+    return data
+  } catch (agg) {
+    const errs = agg.errors || [agg]
+    throw Object.assign(new Error('OVERPASS'), { detail: errs.map((e) => e.detail || e.message).join(' · ') })
+  } finally {
+    clearTimeout(timer)
   }
-  throw last || new Error('OVERPASS')
 }
 
-async function fetchPlaces({ lat, lon }, radius = 3000, mentalRadius = 8000) {
+// Respaldo: Nominatim (buscador de OpenStreetMap). Es otro servicio, así que funciona aunque Overpass esté caído.
+const NOMI = 'https://nominatim.openstreetmap.org/search'
+const NOMI_TERMS = ['psicólogo', 'salud mental', 'psiquiatría', 'centro de salud', 'hospital', 'clínica', 'posta médica']
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+async function nominatimPlaces({ lat, lon }, km, alive = () => true) {
+  const dLat = km / 111.32
+  const dLon = km / (111.32 * Math.cos((lat * Math.PI) / 180))
+  const viewbox = [lon - dLon, lat + dLat, lon + dLon, lat - dLat].map((v) => v.toFixed(5)).join(',')
+  const out = []
+  let ok = 0
+  for (const term of NOMI_TERMS) {
+    if (!alive()) break
+    try {
+      const u = `${NOMI}?format=jsonv2&addressdetails=1&extratags=1&limit=40&bounded=1&countrycodes=pe&accept-language=es&viewbox=${viewbox}&q=${encodeURIComponent(term)}`
+      const res = await fetch(u)
+      if (res.ok) {
+        ok++
+        ;(await res.json()).forEach((r) => out.push({
+          type: r.osm_type, id: r.osm_id, lat: +r.lat, lon: +r.lon,
+          tags: { ...(r.extratags || {}), name: r.name || (r.display_name || '').split(',')[0], [r.category]: r.type, 'addr:street': r.address?.road, 'addr:housenumber': r.address?.house_number }
+        }))
+      }
+    } catch { /* sigue con el siguiente término */ }
+    await sleep(1100) // política de uso de Nominatim: 1 consulta por segundo
+  }
+  if (!ok) throw Object.assign(new Error('NOMINATIM'), { detail: 'nominatim.openstreetmap.org no respondió' })
+  return { elements: out }
+}
+
+async function fetchPlaces({ lat, lon }, radius = 3000, mentalRadius = 8000, alive = () => true) {
   // Caja (bbox) en vez de "around": Overpass la resuelve mucho más rápido y no se satura.
   // La distancia exacta se filtra después en el navegador.
   const box = (m) => {
@@ -67,15 +100,21 @@ async function fetchPlaces({ lat, lon }, radius = 3000, mentalRadius = 8000) {
   const R = box(radius)
   const M = box(Math.max(radius, mentalRadius))
   // En Perú muchos centros están etiquetados solo con "healthcare" (sin "amenity"), por eso se piden ambos
-  const q = `[out:json][timeout:25];(
-    nwr["healthcare"~"^(psychologist|psychotherapist|counselling)$"]${M};
-    nwr["healthcare:speciality"~"psychiatry|psychology|mental"]${M};
-    nwr["name"~"psicol|psiqui|salud mental|CSMC",i]["amenity"]${M};
-    nwr["name"~"psicol|psiqui|salud mental|CSMC",i]["healthcare"]${M};
-    nwr["healthcare"~"^(hospital|clinic|centre|doctor)$"]${R};
-    nwr["amenity"~"^(hospital|clinic|doctors)$"]${R};
-  );out center tags 400;`
-  const data = await overpass(q)
+  // Solo filtros por etiqueta (rápidos). La clasificación por nombre (psicología, CSMC…) se hace aquí en el navegador.
+  const q = `[out:json][timeout:20];(
+    nwr["healthcare"]${M};
+    nwr["amenity"~"^(hospital|clinic|doctors|social_facility)$"]${M};
+  );out center tags 600;`
+  let data
+  try {
+    data = await overpass(q)
+  } catch (e) {
+    try {
+      data = await nominatimPlaces({ lat, lon }, Math.max(radius, mentalRadius) / 1000, alive)
+    } catch (e2) {
+      throw Object.assign(new Error('ALL'), { detail: `${e.detail} · ${e2.detail}` })
+    }
+  }
   const seen = new Set()
   return data.elements
     .map((e) => {
@@ -93,7 +132,8 @@ async function fetchPlaces({ lat, lon }, radius = 3000, mentalRadius = 8000) {
       let type = TYPE[kind] || 'Salud'
       if (mental) type = /csmc|salud mental comunitari/i.test(t.name) ? 'Centro de Salud Mental Comunitario' : /psiqui/i.test(t.name) || /psychiatry/i.test(t['healthcare:speciality'] || '') ? 'Psiquiatría' : TYPE[t.healthcare] || 'Psicología y salud mental'
       const dist = distanceKm({ lat, lon }, { lat: plat, lon: plon })
-      if (!mental && dist > radius / 1000) return null
+      if (!mental && (dist > radius / 1000 || t.amenity === 'social_facility')) return null
+      if (!mental && !/^(hospital|clinic|doctors)$/.test(t.amenity || '') && !/^(hospital|clinic|centre|doctor)$/.test(t.healthcare || '')) return null
       return {
         id,
         name: t.name,
@@ -191,12 +231,17 @@ export default function Map3D() {
   // Si no hay nada cerca, amplía el radio (3 → 6 → 12 km) antes de decir que no hay centros
   const [radiusKm, setRadiusKm] = useState(3)
   const [errMsg, setErrMsg] = useState('')
+  const reqId = useRef(0)
   const load = async (center = pos) => {
+    const id = ++reqId.current
     setStateL('loading')
     setErrMsg('')
     try {
+      // Una sola consulta de 12 km; después se elige el radio más pequeño que tenga resultados
+      const all = await fetchPlaces(center, 12000, 12000, () => id === reqId.current)
+      if (id !== reqId.current) return
       for (const r of [3, 6, 12]) {
-        const list = await fetchPlaces(center, r * 1000, Math.max(8000, r * 1000))
+        const list = all.filter((p) => p.dist <= (p.mental ? Math.max(8, r) : r))
         if (list.length || r === 12) {
           setRadiusKm(r)
           setPlaces(list)
@@ -205,6 +250,7 @@ export default function Map3D() {
         }
       }
     } catch (e) {
+      if (id !== reqId.current) return
       setErrMsg(e.message === 'OVERPASS_TIMEOUT' ? 'Los servidores de OpenStreetMap están saturados en este momento.' : `Detalle: ${e.detail || e.message}.`)
       setStateL('error')
     }
