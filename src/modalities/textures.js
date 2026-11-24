@@ -1,6 +1,8 @@
 // Texturas realistas generadas en el navegador (ruido fractal repetible + mapa de normales).
 // No se descarga ninguna imagen: todo sale de un canvas y se guarda en memoria la primera vez.
 
+import { auroraTexture } from './planets'
+
 const SIZE = 384
 const cache = {}
 
@@ -197,7 +199,7 @@ export function assetsHTML(keys = ['stone', 'bark', 'grass', 'sand', 'moss', 'wa
       const t = TEXTURES[k]()
       return `<img id="tx-${k}" src="${t.map}" crossorigin="anonymous"><img id="tx-${k}-n" src="${t.normal}" crossorigin="anonymous">`
     })
-    .join('')}</a-assets>`
+    .join('')}<img id="tx-aurora" src="${auroraTexture()}"></a-assets>`
 }
 
 // Material PBR listo para usar en un atributo material="..."

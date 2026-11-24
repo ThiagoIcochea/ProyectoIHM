@@ -1,5 +1,5 @@
 import { mat } from './textures'
-import { starSky, auroraTexture } from './planets'
+import { starSky } from './planets'
 import { terrainHeight, blocked } from './terrainMath'
 
 // Mundos del Santuario de calma (A-Frame). Todo se genera con primitivas: no hay modelos ni texturas externas.
@@ -170,15 +170,14 @@ const BUILDERS = {
     o += moonHTML('-12 16 -42', 3.2)
     // Aurora
     ;['#FFFFFF', '#9FE8FF', '#E2C8FF'].forEach((c, i) => {
-      o += `<a-plane position="${-10 + i * 10} ${15 + i * 1.5} ${-46 - i * 3}" width="34" height="16" rotation="${8 - i * 2} ${-18 + i * 18} ${-4 + i * 4}" material="shader: flat; src: ${auroraTexture()}; color: ${c}; opacity: 0.55; transparent: true; side: double; depthWrite: false; fog: false; blending: additive" animation="property: material.opacity; from: 0.3; to: 0.75; dir: alternate; loop: true; dur: ${5000 + i * 1300}; easing: easeInOutSine" ${HIDE}></a-plane>`
+      o += `<a-plane position="${-10 + i * 10} ${15 + i * 1.5} ${-46 - i * 3}" width="34" height="16" rotation="${8 - i * 2} ${-18 + i * 18} ${-4 + i * 4}" material="shader: flat; src: #tx-aurora; color: ${c}; opacity: 0.55; transparent: true; side: double; depthWrite: false; fog: false; blending: additive" animation="property: material.opacity; from: 0.3; to: 0.75; dir: alternate; loop: true; dur: ${5000 + i * 1300}; easing: easeInOutSine" ${HIDE}></a-plane>`
     })
     // Fogata
     o += `<a-entity position="3.6 0 -1.2" ${HIDE}>
-      <a-entity light="type: point; color: #FF9A4D; intensity: 1.4; distance: 12" position="0 0.8 0" animation="property: light.intensity; from: 1; to: 1.7; dir: alternate; loop: true; dur: 260"></a-entity>
-      <a-cylinder radius="0.07" height="1" rotation="0 0 80" position="0 0.1 0" color="#5A3B26"></a-cylinder><a-cylinder radius="0.07" height="1" rotation="80 0 0" position="0 0.1 0" color="#5A3B26"></a-cylinder>
-      <a-cone radius-bottom="0.3" radius-top="0" height="0.8" position="0 0.5 0" material="shader: flat; color: #FF7A2F; opacity: 0.9; transparent: true" animation="property: scale; to: 1.1 1.35 1.1; dir: alternate; loop: true; dur: 300"></a-cone>
-      <a-cone radius-bottom="0.18" radius-top="0" height="0.55" position="0 0.45 0" material="shader: flat; color: #FFD166" animation="property: scale; to: 0.9 1.4 0.9; dir: alternate; loop: true; dur: 220"></a-cone></a-entity>`
-    for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; o += rock(3.6 + Math.cos(a) * 0.55, -1.2 + Math.sin(a) * 0.55, 0.12, '#6B7680') }
+      <a-circle radius="1.8" rotation="-90 0 0" position="0 0.02 0" material="shader: flat; color: #FF8A3D; opacity: 0.1; transparent: true; depthWrite: false"></a-circle>
+      <a-cylinder radius="0.07" height="0.9" rotation="0 0 80" position="0 0.1 0" ${mat('bark', { color: '#C9B49A' })}></a-cylinder><a-cylinder radius="0.07" height="0.9" rotation="80 0 0" position="0 0.1 0" ${mat('bark', { color: '#C9B49A' })}></a-cylinder>
+      <a-entity position="0 0.12 0" fire="scale: 0.8; flames: 130; sparks: 36; smoke: 24"></a-entity></a-entity>`
+    for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; o += `<a-dodecahedron radius="0.12" position="${f(3.6 + Math.cos(a) * 0.55)} 0.07 ${f(-1.2 + Math.sin(a) * 0.55)}" scale="1.2 0.7 1" ${mat('stone', { color: '#B9B4AC' })} ${HIDE}></a-dodecahedron>` }
     o += `<a-entity position="-4 0 -4" rotation="0 30 0" ${HIDE}><a-cone radius-bottom="1.3" radius-top="0" height="1.6" segments-radial="4" position="0 0.8 0" color="#2F5D7C"></a-cone></a-entity>`
     for (let i = 0; i < 50; i++) { const [x, z] = ring(r, 8, 32); if (clearPath(x, z)) o += pine(x, z, 2.5 + r() * 3, 0.9 + r() * 0.6, '#16362B', '#1E4535') }
     for (let i = 0; i < 26; i++) { const [x, z] = ring(r, 2.5, 12); o += glow(x, 0.5 + r() * 1.8, z, '#E8F59A', 0.04, i, 2400 + r() * 2200) }
